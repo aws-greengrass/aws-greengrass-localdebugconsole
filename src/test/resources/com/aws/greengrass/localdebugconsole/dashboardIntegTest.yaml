@@ -28,3 +28,6 @@ services:
     lifecycle:
       run:
         java Nope
+  aws.greengrass.LocalDebugConsole:
+    configuration:
+      httpsEnabled: false

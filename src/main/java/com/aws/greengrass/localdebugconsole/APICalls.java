@@ -28,6 +28,11 @@ public enum APICalls {
     getComponent,
 
     /**
+     * Returns a list of extensions for the given page and service.
+     */
+    getExtensions,
+
+    /**
      * Request start of a component from lifecycle.
      */
     startComponent,

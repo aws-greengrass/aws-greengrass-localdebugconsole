@@ -155,6 +155,12 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
 
+                case getExtensions: {
+                    sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID,
+                            dashboardAPI.getExtensions(req.args[0], req.args[1])));
+                    break;
+                }
+
                 case startComponent: {
                     boolean retval = dashboardAPI.startComponent(req.args[0]);
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, retval));

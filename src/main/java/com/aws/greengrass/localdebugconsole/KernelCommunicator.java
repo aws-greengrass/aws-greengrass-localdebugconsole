@@ -23,6 +23,7 @@ import com.aws.greengrass.localdebugconsole.messageutils.ConfigMessage;
 import com.aws.greengrass.localdebugconsole.messageutils.DepGraphNode;
 import com.aws.greengrass.localdebugconsole.messageutils.Dependency;
 import com.aws.greengrass.localdebugconsole.messageutils.DeviceDetails;
+import com.aws.greengrass.localdebugconsole.messageutils.ExtensionInfo;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.logging.impl.config.LogStore;
@@ -196,6 +197,12 @@ public class KernelCommunicator implements DashboardAPI {
                                 .map(e -> new Dependency(e.getKey().getName(),
                                         e.getValue().equals(DependencyType.HARD))).toArray(Dependency[]::new)))
                 .toArray(DepGraphNode[]::new);
+    }
+
+    @Override
+    public ExtensionInfo[] getExtensions(String pageType, String component) {
+        System.out.println("Get extensions for " + pageType + " " + component);
+        return new ExtensionInfo[]{new ExtensionInfo("testPath.js")};
     }
 
     /**

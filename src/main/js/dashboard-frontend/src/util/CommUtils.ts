@@ -17,6 +17,7 @@ export enum APICall {
   getDeviceDetails = "getDeviceDetails",
   getComponentList = "getComponentList",
   getComponent = "getComponent",
+  getExtensions = "getExtensions",
 
   startComponent = "startComponent",
   stopComponent = "stopComponent",

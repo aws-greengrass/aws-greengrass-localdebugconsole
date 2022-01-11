@@ -18,6 +18,7 @@ import {
 } from "../util/CommUtils";
 import {ComponentItem} from "../util/ComponentItem";
 import React, {ReactNode} from "react";
+import {SERVER} from "../index";
 
 export default class ServerEndpoint {
   portno: number;
@@ -172,6 +173,7 @@ export default class ServerEndpoint {
    * @param request a Request object
    */
   async sendRequest(request: Request): Promise<any> {
+    await SERVER.initConnections();
     let reqID = requestID();
     let deferredPromise = this.deferRequest({
       requestID: reqID,

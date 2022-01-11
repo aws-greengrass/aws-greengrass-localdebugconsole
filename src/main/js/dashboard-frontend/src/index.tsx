@@ -21,6 +21,7 @@ export var SERVER: ServerEndpoint;
 
 interface AppState {
     flashItems: FlashbarProps.MessageDefinition[];
+    navOpen: boolean;
 }
 
 class App extends Component<any, AppState> {
@@ -30,7 +31,8 @@ class App extends Component<any, AppState> {
     SERVER = new ServerEndpoint(window.WEBSOCKET_PORT, window.USERNAME, window.PASSWORD, 5, this.websocketError);
 
     this.state = {
-        flashItems: []
+        flashItems: [],
+        navOpen: true
     };
   }
 
@@ -63,7 +65,10 @@ class App extends Component<any, AppState> {
           navigation={<NavSideBar />}
           breadcrumbs={<Breadcrumbs />}
           notifications={<Flashbar items={this.state.flashItems} />}
-          navigationOpen={true}
+          navigationOpen={this.state.navOpen}
+          onNavigationChange={(e) => {
+              this.setState({navOpen: e.detail.open})
+          }}
           toolsHide={true}
           contentType="default"
           content={

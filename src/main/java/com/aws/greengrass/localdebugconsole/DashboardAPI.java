@@ -9,6 +9,7 @@ import com.aws.greengrass.localdebugconsole.messageutils.ComponentItem;
 import com.aws.greengrass.localdebugconsole.messageutils.ConfigMessage;
 import com.aws.greengrass.localdebugconsole.messageutils.DepGraphNode;
 import com.aws.greengrass.localdebugconsole.messageutils.DeviceDetails;
+import com.aws.greengrass.localdebugconsole.messageutils.ExtensionInfo;
 
 public interface DashboardAPI {
 
@@ -73,4 +74,6 @@ public interface DashboardAPI {
      * @return an graph in the form of a map of service names to a list of dependencies.
      */
     DepGraphNode[] getDependencyGraph();
+
+    ExtensionInfo[] getExtensions(String pageType, String component);
 }

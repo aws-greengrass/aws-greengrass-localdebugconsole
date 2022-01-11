@@ -132,6 +132,8 @@ class DashboardIntegrationTest {
         dm.depGraphLatch = new CountDownLatch(1);
         dm.sendRequest(new PackedRequest(reqId(), APICalls.forcePushDependencyGraph.name(),
                 new String[0]));
+        System.out.println(kernel.getContext().get(SimpleHttpServer.class).port);
+        Thread.sleep(100_000);
         assertTrue(dm.depGraphLatch.await(200, TimeUnit.MILLISECONDS));
     }
 

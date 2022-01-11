@@ -9,6 +9,7 @@ import AceEditor from "react-ace";
 import "ace-builds/src-noconflict/mode-yaml";
 import "ace-builds/src-noconflict/theme-solarized_dark";
 import "ace-builds/src-noconflict/theme-iplastic";
+import "ace-builds/src-noconflict/ext-language_tools";
 import {ComponentItem} from "../../util/ComponentItem";
 import {SERVER} from "../../index";
 import {APICall, ConfigMessage} from "../../util/CommUtils";

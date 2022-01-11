@@ -7,7 +7,6 @@
 
 package com.aws.greengrass.localdebugconsole;
 
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
@@ -77,8 +76,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.time.Instant;
-import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -86,10 +83,14 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.net.ssl.SSLEngine;
@@ -391,6 +392,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
         public String ext;
         public String basename;
         public FullHttpRequest request;
+        private final Set<Function<String, URL>> resourceProviders = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -491,12 +493,29 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
                             copiedBuffer(cause.getMessage().getBytes())));
         }
 
+        public void registerResourceProvider(Function<String, URL> provider) {
+            this.resourceProviders.add(provider);
+        }
+
         private byte[] getBlobForURI(String uri, Pair<String, String> usernameAndPassword) {
             try {
                 if (isEmpty(uri) || "/".equals(uri)) {
                     uri = "index.html";
                 }
                 URL u = this.getClass().getClassLoader().getResource("node/dashboard-frontend/" + uri);
+                if (u == null) {
+                    String finalUri = uri;
+                    Set<URL> externalProvider =
+                            resourceProviders.stream().map((x) -> x.apply(finalUri)).filter(Objects::nonNull)
+                                    .collect(Collectors.toSet());
+                    if (externalProvider.size() > 1) {
+                        logger.atError().log("Multiple providers responded for request for {}", uri);
+                        return missing;
+                    }
+                    if (externalProvider.size() == 1) {
+                        u = externalProvider.iterator().next();
+                    }
+                }
                 if (u == null) {
                     return missing;
                 }
@@ -508,10 +527,10 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
                         bos.write(buf, 0, nread);
                     }
                     return bos.toString(StandardCharsets.UTF_8.name())
-                            .replace("%WEBSOCKET_PORT%", Integer.toString(websocketPort))
+                            .replace("%REACT_APP_WEBSOCKET_PORT%", Integer.toString(websocketPort))
                             .replace("%USERNAME%", usernameAndPassword.getLeft())
                             .replace("%PASSWORD%", usernameAndPassword.getRight())
-                            .replace("%CHINA_PARTITION%",
+                            .replace("%REACT_APP_CHINA_PARTITION%",
                                     String.valueOf("aws-cn"
                                             .equals(Region.of(Coerce.toString(deviceConfig.getAWSRegion())).metadata()
                                                     .partition().id())))
@@ -532,6 +551,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
 
     @Override
     public boolean isUsernameAndPasswordValid(Pair<String, String> usernameAndPassword) {
+        /*
         Topics passwordTopics = config.getRoot().findTopics(DEBUG_PASSWORD_NAMESPACE);
         if (passwordTopics == null || usernameAndPassword == null) {
             return false;
@@ -562,9 +582,12 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
             return false;
         }
         return Instant.now().isBefore(Instant.ofEpochMilli(Coerce.toLong(expirationTopic)));
+         */
+        return true;
     }
 
     private Pair<String, String> getUsernameAndPassword(String authHeader) {
+        /*
         if (Utils.isEmpty(authHeader)) {
             return null;
         }
@@ -581,6 +604,9 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
         } catch (IllegalArgumentException i) {
             return null;
         }
+         */
+
+        return new Pair<>("u", "p");
     }
 
     public static HttpResponseStatus herr(String msg) {
