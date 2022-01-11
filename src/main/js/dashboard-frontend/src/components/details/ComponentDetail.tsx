@@ -46,7 +46,7 @@ function ComponentDetail() {
                 return (<div key={"extension " + i} className="col-12 col-l-6 col-xl-6">
                   <ErrorBoundary>
                     <Suspense fallback={<div>Loading extension from {v}...</div>}>
-                      <ExtensionComp component={service} server={SERVER}/>
+                      <ExtensionComp componentName={service} server={SERVER}/>
                     </Suspense>
                   </ErrorBoundary>
                 </div>);
