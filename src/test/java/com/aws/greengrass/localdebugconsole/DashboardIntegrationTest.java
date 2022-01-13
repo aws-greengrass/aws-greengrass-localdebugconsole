@@ -19,6 +19,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.DefaultConcurrentHashMap;
+import org.java_websocket.WebSocket;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -44,8 +46,12 @@ import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -139,6 +145,9 @@ class DashboardIntegrationTest {
                 new String[0]));
         System.out.println(kernel.getContext().get(SimpleHttpServer.class).port);
         kernel.getContext().get(SimpleHttpServer.class).registerPlugin(new DashboardPlugin() {
+            private final Map<WebSocket, Set<Thread>> subscribers =
+                    new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new);
+
             @Override
             public String getPluginPath(String pageType) {
                 return "index.js";
@@ -156,8 +165,32 @@ class DashboardIntegrationTest {
             }
 
             @Override
-            public void onMessage(PackedRequest packedRequest, Consumer<Message> sendIfOpen) {
-                sendIfOpen.accept(new Message(MessageType.RESPONSE, packedRequest.requestID, "hello from server"));
+            public void onMessage(PackedRequest packedRequest, Consumer<Message> sendIfOpen, WebSocket conn) {
+                System.out.println(Arrays.toString(packedRequest.request.args));
+                if (packedRequest.request.args.length == 2 && packedRequest.request.args[1].equals("subscribe")) {
+                    sendIfOpen.accept(new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    Thread t = new Thread(() -> {
+                        while (true) {
+                            try {
+                                Thread.sleep(5_000);
+                            } catch (InterruptedException e) {
+                                System.out.println("Subscription dropped");
+                                return;
+                            }
+                            sendIfOpen.accept(new Message(MessageType.SUBSCRIPTION_EVENT, packedRequest.requestID,
+                                    "subscription event from server!"));
+                        }
+                    });
+                    subscribers.get(conn).add(t);
+                    t.start();
+                } else {
+                    sendIfOpen.accept(new Message(MessageType.RESPONSE, packedRequest.requestID, "hello from server"));
+                }
+            }
+
+            @Override
+            public void onConnectionClose(WebSocket conn) {
+                subscribers.remove(conn).forEach(Thread::interrupt);
             }
         });
         assertTrue(dm.depGraphLatch.await(200, TimeUnit.MILLISECONDS));

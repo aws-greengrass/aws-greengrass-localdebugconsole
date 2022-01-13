@@ -7,6 +7,7 @@ package com.aws.greengrass.localdebugconsole;
 
 import com.aws.greengrass.localdebugconsole.messageutils.Message;
 import com.aws.greengrass.localdebugconsole.messageutils.PackedRequest;
+import org.java_websocket.WebSocket;
 
 import java.net.URL;
 import java.util.function.Consumer;
@@ -18,5 +19,7 @@ public interface DashboardPlugin {
 
     String getApiServiceName();
 
-    void onMessage(PackedRequest packedRequest, Consumer<Message> sendIfOpen);
+    void onMessage(PackedRequest packedRequest, Consumer<Message> sendIfOpen, WebSocket conn);
+
+    void onConnectionClose(WebSocket conn);
 }

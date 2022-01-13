@@ -10,6 +10,13 @@ export default function (props: any) {
             call: "pluginCall",
             args: ["testPlugin", "fromFrontEnd"],
         }));
+
+        console.log(await props.server.sendSubscriptionMessage({
+            call: "pluginCall",
+            args: ["testPlugin", "subscribe"],
+        }, (m: any) => {
+            console.log(m);
+        }));
     };
     x();
     return (<>
