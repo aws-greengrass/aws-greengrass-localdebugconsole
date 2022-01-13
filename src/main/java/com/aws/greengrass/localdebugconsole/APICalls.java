@@ -86,4 +86,9 @@ public enum APICalls {
      * Utility called by the client to get the current wireframe dependency graph.
      */
     forcePushDependencyGraph,
+
+    /**
+     * Forward call to plugin specified by the first argument (if it exists).
+     */
+    pluginCall,
 }

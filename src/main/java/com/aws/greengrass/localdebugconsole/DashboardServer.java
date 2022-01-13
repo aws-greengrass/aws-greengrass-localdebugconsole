@@ -50,15 +50,18 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     @Getter(AccessLevel.PACKAGE)
     private final CompletableFuture<Object> started = new CompletableFuture<>();
     private final Authenticator authenticator;
+    private final Set<DashboardPlugin> plugins;
 
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
-                           Authenticator authenticator, Provider<SSLEngine> engineProvider) {
-        this(address, logger, new KernelCommunicator(root, logger, deviceConfig), authenticator, engineProvider);
+                           Authenticator authenticator, Provider<SSLEngine> engineProvider,
+                           Set<DashboardPlugin> plugins) {
+        this(address, logger, new KernelCommunicator(root, logger, deviceConfig, plugins), authenticator,
+                engineProvider, plugins);
     }
 
     // constructor for unit testing
     DashboardServer(InetSocketAddress address, Logger logger, DashboardAPI dashboardAPI, Authenticator authenticator,
-                    Provider<SSLEngine> engineProvider) {
+                    Provider<SSLEngine> engineProvider, Set<DashboardPlugin> plugins) {
         super(address);
         setReuseAddr(true);
         setTcpNoDelay(true);
@@ -68,6 +71,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         this.logger = logger;
         this.dashboardAPI = dashboardAPI;
         this.authenticator = authenticator;
+        this.plugins = plugins;
         this.logger.atInfo().log("Starting dashboard server on address: {}", address);
     }
 
@@ -216,6 +220,18 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                 case forcePushDependencyGraph: {
                     pushDependencyGraphUpdate();
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    break;
+                }
+                case pluginCall: {
+                    if (packedRequest.request.args.length == 0) {
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, false));
+                        break;
+                    }
+                    plugins.forEach((p) -> {
+                        if (p.getApiServiceName().equals(packedRequest.request.args[0])) {
+                            p.onMessage(packedRequest, (m) -> sendIfOpen(conn, m));
+                        }
+                    });
                     break;
                 }
                 default: { // echo

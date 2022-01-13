@@ -8,7 +8,7 @@
 
 #node ignores
 /src/main/js/dashboard-frontend/coverage
-/src/main/js/dashboard-frontend/build
+build/
 package-lock.json
 .env.local
 .env.development.local

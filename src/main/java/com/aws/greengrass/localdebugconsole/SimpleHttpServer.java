@@ -87,7 +87,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -121,6 +120,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
     private static final int DEFAULT_HTTP_PORT = 1441;
     private static final int DEFAULT_WEBSOCKET_PORT = 1442;
     private static final boolean DEFAULT_HTTPS_ENABLED = true;
+    private final Set<DashboardPlugin> plugins = Collections.newSetFromMap(new ConcurrentHashMap<>());
     int port = DEFAULT_HTTP_PORT;
 
     private final Kernel kernel;
@@ -196,7 +196,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
 
         logger.atInfo().log("Starting local dashboard server");
         dashboardServer = new DashboardServer(new InetSocketAddress(bindHostname, websocketPort), logger,
-                kernel, deviceConfig, this, engineProvider);
+                kernel, deviceConfig, this, engineProvider, plugins);
         dashboardServer.startup();
         try {
             // We need to wait for the server to startup before grabbing the port because it starts in a separate thread
@@ -377,6 +377,14 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
         }
     }
 
+    public void registerPlugin(DashboardPlugin plugin) {
+        this.plugins.add(plugin);
+    }
+
+    public void deregisterPlugin(DashboardPlugin plugin) {
+        this.plugins.remove(plugin);
+    }
+
     static final byte[] missing = {1, 2, 3};
 
     @SuppressWarnings("UseSpecificCatch")
@@ -392,7 +400,6 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
         public String ext;
         public String basename;
         public FullHttpRequest request;
-        private final Set<Function<String, URL>> resourceProviders = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -493,10 +500,6 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
                             copiedBuffer(cause.getMessage().getBytes())));
         }
 
-        public void registerResourceProvider(Function<String, URL> provider) {
-            this.resourceProviders.add(provider);
-        }
-
         private byte[] getBlobForURI(String uri, Pair<String, String> usernameAndPassword) {
             try {
                 if (isEmpty(uri) || "/".equals(uri)) {
@@ -505,9 +508,12 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
                 URL u = this.getClass().getClassLoader().getResource("node/dashboard-frontend/" + uri);
                 if (u == null) {
                     String finalUri = uri;
-                    Set<URL> externalProvider =
-                            resourceProviders.stream().map((x) -> x.apply(finalUri)).filter(Objects::nonNull)
-                                    .collect(Collectors.toSet());
+                    Set<URL> externalProvider = plugins.stream()
+                            // Only find resource providers for resources under the plugin directory with the
+                            // plugin's service name
+                            .filter(x -> finalUri.startsWith(String.format("plugin/%s/", x.getApiServiceName())))
+                            .map((x) -> x.getResourceURL(finalUri)).filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
                     if (externalProvider.size() > 1) {
                         logger.atError().log("Multiple providers responded for request for {}", uri);
                         return missing;
@@ -658,6 +664,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
         m("image/svg", "svg");
         m("text/plain", "txt");
         m("application/json", "json");
+        m("text/javascript", "js");
         m("application/pdf", "pdf", "ai");
         m("image/tiff", "tiff", "tif");
         m("image/x-icon", "ico");

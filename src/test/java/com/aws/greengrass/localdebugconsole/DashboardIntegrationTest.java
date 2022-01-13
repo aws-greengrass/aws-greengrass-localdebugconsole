@@ -10,6 +10,8 @@ import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.localdebugconsole.dashboardtestmocks.DashboardClientMock;
+import com.aws.greengrass.localdebugconsole.messageutils.Message;
+import com.aws.greengrass.localdebugconsole.messageutils.MessageType;
 import com.aws.greengrass.localdebugconsole.messageutils.PackedRequest;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -35,11 +37,14 @@ import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -97,7 +102,7 @@ class DashboardIntegrationTest {
         };
         addGlobalListener(listener);
         dashboardServer = new DashboardServer(new InetSocketAddress("localhost", 0), logger, kernel,
-                null, (a) -> true, null);
+                null, (a) -> true, null, Collections.emptySet());
 
         dashboardServer.startup();
         // wait for steady state
@@ -133,7 +138,28 @@ class DashboardIntegrationTest {
         dm.sendRequest(new PackedRequest(reqId(), APICalls.forcePushDependencyGraph.name(),
                 new String[0]));
         System.out.println(kernel.getContext().get(SimpleHttpServer.class).port);
-        Thread.sleep(100_000);
+        kernel.getContext().get(SimpleHttpServer.class).registerPlugin(new DashboardPlugin() {
+            @Override
+            public String getPluginPath(String pageType) {
+                return "index.js";
+            }
+
+            @Override
+            public URL getResourceURL(String requestPath) {
+                return this.getClass().getClassLoader()
+                        .getResource("node/dashboard-extension2/" + Paths.get(requestPath).getFileName());
+            }
+
+            @Override
+            public String getApiServiceName() {
+                return "testPlugin";
+            }
+
+            @Override
+            public void onMessage(PackedRequest packedRequest, Consumer<Message> sendIfOpen) {
+                sendIfOpen.accept(new Message(MessageType.RESPONSE, packedRequest.requestID, "hello from server"));
+            }
+        });
         assertTrue(dm.depGraphLatch.await(200, TimeUnit.MILLISECONDS));
     }
 

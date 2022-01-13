@@ -33,6 +33,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -82,7 +83,7 @@ class KernelCommunicatorTest {
         kernel.parseArgs("-i", KernelCommunicatorTest.class.getResource("kernelPushTest.yaml").toString());
         kernel.launch();
         Logger logger = LogManager.getLogger(Kernel.class);
-        KernelCommunicator temp = new KernelCommunicator(kernel, logger, null);
+        KernelCommunicator temp = new KernelCommunicator(kernel, logger, null, Collections.emptySet());
         kc = Mockito.spy(temp);
         kc.linkWithPusher(ds);
         kc.linkWithKernel();

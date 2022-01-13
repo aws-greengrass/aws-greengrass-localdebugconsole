@@ -29,6 +29,7 @@ export default class ServerEndpoint {
   _connectionPromise: DeferredPromise;
 
   reqList: Map<RequestID, DeferredPromise> = new Map();
+  genericSubscribers: Map<RequestID, Function> = new Map();
   componentListSubscribers: Set<Function> = new Set();
   dependencyGraphSubscribers: Set<Function> = new Set();
   componentSubscribers: Map<string, Set<Function>> = new Map();
@@ -134,6 +135,10 @@ export default class ServerEndpoint {
         this.logHandler(msg);
         break;
       }
+      case MessageType.SUBSCRIPTION_EVENT: {
+        this.subscriptionHandler(msg);
+        break;
+      }
     }
   };
 
@@ -166,20 +171,29 @@ export default class ServerEndpoint {
     let set = this.componentLogSubscribers.get(log.name);
     if (set) set.forEach((callback) => callback(log));
   };
+  subscriptionHandler = (msg: Message) => {
+    const cb = this.genericSubscribers.get(msg.requestID);
+    if (cb) {
+      cb(msg.payload);
+    }
+  };
 
   /**
    * Sends an API call to the server and returns a promise with the response. See internal http API for a list
    * of available calls.
    * @param request a Request object
+   * @param reqId optional request ID
    */
-  async sendRequest(request: Request): Promise<any> {
+  async sendRequest(request: Request, reqId?: RequestID): Promise<any> {
     await SERVER.initConnections();
-    let reqID = requestID();
+    if (typeof reqId === "undefined") {
+      reqId = requestID();
+    }
     let deferredPromise = this.deferRequest({
-      requestID: reqID,
+      requestID: reqId,
       request: request,
     });
-    this.reqList.set(reqID, deferredPromise);
+    this.reqList.set(reqId, deferredPromise);
     return deferredPromise.race;
   }
 
@@ -272,6 +286,11 @@ export default class ServerEndpoint {
           }
         }
         break;
+      }
+      case APICall.pluginCall: {
+        const reqId = requestID();
+        this.genericSubscribers.set(reqId, messageHandler);
+        return this.sendRequest(request, reqId)
       }
     }
     return this.sendRequest(request);

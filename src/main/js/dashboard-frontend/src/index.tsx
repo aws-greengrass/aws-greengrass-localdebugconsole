@@ -24,6 +24,9 @@ interface AppState {
     navOpen: boolean;
 }
 
+// @ts-ignore
+window.h = React;
+
 class App extends Component<any, AppState> {
   constructor(props: any) {
     super(props);

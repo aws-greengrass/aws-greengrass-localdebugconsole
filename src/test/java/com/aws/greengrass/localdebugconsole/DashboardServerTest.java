@@ -27,6 +27,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +77,7 @@ class DashboardServerTest {
 
         addGlobalListener(listener);
         ds = new DashboardServer(new InetSocketAddress("localhost", dashboardServerPort),
-                LogManager.getLogger(Kernel.class), kc, authenticator, null);
+                LogManager.getLogger(Kernel.class), kc, authenticator, null, Collections.emptySet());
         ds.startup();
         assertTrue(startupLatch.await(5, TimeUnit.SECONDS));
         dashboardServerPort = ds.getPort();

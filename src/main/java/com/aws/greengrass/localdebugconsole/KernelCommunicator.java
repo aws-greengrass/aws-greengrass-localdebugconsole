@@ -37,6 +37,7 @@ import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Singleton;
@@ -51,6 +52,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STOR
 public class KernelCommunicator implements DashboardAPI {
 
     private final Kernel root;
+    private final Set<DashboardPlugin> plugins;
     private KernelMessagePusher server;
     protected final Logger logger;
     private final DeviceConfiguration deviceConfig;
@@ -59,10 +61,12 @@ public class KernelCommunicator implements DashboardAPI {
     private final ConcurrentHashMap<GreengrassService, Map<GreengrassService, DependencyType>> dependencyGraph =
             new ConcurrentHashMap<>();
 
-    public KernelCommunicator(Kernel root, Logger logger, DeviceConfiguration deviceConfig) {
+    public KernelCommunicator(Kernel root, Logger logger, DeviceConfiguration deviceConfig,
+                              Set<DashboardPlugin> plugins) {
         this.root = root;
         this.logger = logger;
         this.deviceConfig = deviceConfig;
+        this.plugins = plugins;
     }
 
     void linkWithPusher(KernelMessagePusher server) {
@@ -201,8 +205,10 @@ public class KernelCommunicator implements DashboardAPI {
 
     @Override
     public ExtensionInfo[] getExtensions(String pageType, String component) {
-        System.out.println("Get extensions for " + pageType + " " + component);
-        return new ExtensionInfo[]{new ExtensionInfo("testPath.js")};
+        return plugins.stream().map(p -> String.format("plugin/%s/%s", p.getApiServiceName(), p.getPluginPath(pageType)))
+                .filter(Objects::nonNull)
+                .map(ExtensionInfo::new)
+                .toArray(ExtensionInfo[]::new);
     }
 
     /**

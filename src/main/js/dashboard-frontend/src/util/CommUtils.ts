@@ -33,6 +33,7 @@ export enum APICall {
   unsubscribeToComponent = "unsubscribeToComponent",
   subscribeToComponentLogs = "subscribeToComponentLogs",
   unsubscribeToComponentLogs = "unsubscribeToComponentLogs",
+  pluginCall = "pluginCall",
 }
 export enum InternalAPICall {
   init = "init",
@@ -52,6 +53,7 @@ export enum MessageType {
   DEPS_GRAPH,
   COMPONENT_CHANGE,
   COMPONENT_LOGS,
+  SUBSCRIPTION_EVENT,
 }
 
 export interface DepGraphNode {
