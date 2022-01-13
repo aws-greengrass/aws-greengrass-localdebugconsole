@@ -205,10 +205,13 @@ public class KernelCommunicator implements DashboardAPI {
 
     @Override
     public ExtensionInfo[] getExtensions(String pageType, String component) {
-        return plugins.stream().map(p -> String.format("plugin/%s/%s", p.getApiServiceName(), p.getPluginPath(pageType)))
-                .filter(Objects::nonNull)
-                .map(ExtensionInfo::new)
-                .toArray(ExtensionInfo[]::new);
+        return plugins.stream().map(p -> {
+            String pluginPath = p.getPluginPath(pageType);
+            if (pluginPath == null) {
+                return pluginPath;
+            }
+            return String.format("plugin/%s/%s", p.getApiServiceName(), pluginPath);
+        }).filter(Objects::nonNull).map(ExtensionInfo::new).toArray(ExtensionInfo[]::new);
     }
 
     /**

@@ -143,7 +143,7 @@ class DashboardIntegrationTest {
         dm.depGraphLatch = new CountDownLatch(1);
         dm.sendRequest(new PackedRequest(reqId(), APICalls.forcePushDependencyGraph.name(),
                 new String[0]));
-        System.out.println(kernel.getContext().get(SimpleHttpServer.class).port);
+
         kernel.getContext().get(SimpleHttpServer.class).registerPlugin(new DashboardPlugin() {
             private final Map<WebSocket, Set<Thread>> subscribers =
                     new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new);
