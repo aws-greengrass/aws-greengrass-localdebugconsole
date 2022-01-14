@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.net.ssl.SSLEngine;
@@ -222,18 +223,30 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                 }
                 case unsubscribeToComponentLogs: {
                     String logFile = req.args[0];
-                    removeFromMapOfLists(logWatchlist, logFile, conn);
+                    logWatchlist.get(logFile).remove(conn);
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
 
-                    // If that was the last item, the mapping will be removed from logWatchlist
+                    // Remove the mapping if that was the last conn.
+                    // Doing this instead of removeFromMapOfLists because logWatchlist is a DefaultConcurrentHashMap
+                    // so containsKey always return true.
+                    // Therefore, must tap into computeIfPresent to know lastConnRemoved
+                    AtomicBoolean lastConnRemoved = new AtomicBoolean(false);
+                    logWatchlist.computeIfPresent(logFile, (k, v) -> {
+                        if (v.isEmpty()) {
+                            lastConnRemoved.set(true);
+                            return null;
+                        }
+                        return v;
+                    });
+
                     // Stop the tailer if there's no watchers left
-                    //if (!logWatchlist.containsKey(logFile)) {
+                    if (lastConnRemoved.get()) {
                         logTailers.computeIfPresent(logFile, (k, tailer) -> {
                             tailer.stop();
-                            System.out.println("Stopped tailer: " + logFile);
+                            logger.debug("Stopped tailer for: {}", logFile);
                             return null;
                         });
-                    //}
+                    }
                     break;
                 }
                 case forcePushComponentList: {
@@ -263,7 +276,17 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
         connections.remove(conn);
         statusWatchlist.forEach((name, set) -> set.remove(conn));
-        logWatchlist.forEach((name, set) -> set.remove(conn));
+        logWatchlist.forEach((name, set) -> {
+            set.remove(conn);
+            // If no watchers left, stop the log tailer as well.
+            if (set.size() == 0) {
+                logTailers.computeIfPresent(name, (k, tailer) -> {
+                    tailer.stop();
+                    logger.debug("Stopped tailer for: {}", name);
+                    return null;
+                });
+            }
+        });
         logger.atInfo()
                 .log("closed {} with exit code {}, additional info: {}", conn.getRemoteSocketAddress(), code, reason);
     }
@@ -337,10 +360,6 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         }
     }
 
-    /**
-     * Attempts to start a file tailer of the given log file.
-     * Returns true if successful.
-     */
     private void startLogTailer(String logFilename) {
         Path logDir = LogConfig.getRootLogConfig().getStoreDirectory().toAbsolutePath();
         Path logFilePath = logDir.resolve(logFilename);
