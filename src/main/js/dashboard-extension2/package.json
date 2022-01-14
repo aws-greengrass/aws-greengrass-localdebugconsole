@@ -2,27 +2,21 @@
   "name": "dashboard-extension2",
   "version": "1.0.0",
   "main": "build/index.cjs.js",
-  "module": "build/index.js",
+  "exports": "build/index.js",
   "source": "src/index.tsx",
   "private": true,
-  "engines": {
-    "node": ">=10"
-  },
   "scripts": {
-    "build": "microbundle --compress --format esm --jsxFragment h.Fragment --jsx h.createElement",
+    "build": "microbundle --compress --generateTypes false --format modern --jsxFragment h.Fragment --jsx h.createElement --alias @awsui/components-react=./src/libs/awsui-components-react.js",
     "postbuild": "mkdir -p ../../resources/node/dashboard-extension2/ && cp -r ./build/* ../../resources/node/dashboard-extension2/"
   },
   "peerDependencies": {
-    "react": "^16.0.0"
+    "react": "^16.8.0"
   },
   "devDependencies": {
+    "@awsui/components-react": "^3.0.166",
     "@types/react": "^16.0.0",
-    "react": "^16.0.0",
+    "react": "^16.8.0",
     "microbundle": "^0.14.2",
-    "npm-run-all": "^4.1.5",
     "typescript": "^4.5.4"
-  },
-  "files": [
-    "dist"
-  ]
+  }
 }

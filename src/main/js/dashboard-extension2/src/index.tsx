@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React from "react";
+import awsui from "@awsui/components-react"
+
 export default function (props: any) {
     console.log(props);
     const x = async () => {
@@ -20,6 +23,9 @@ export default function (props: any) {
     };
     x();
     return (<>
-        <h1>I'm a plugin!</h1>
+        <awsui.Header>
+            This is a plugin<br/>
+            {props.componentName}
+        </awsui.Header>
     </>)
 }

@@ -13,6 +13,7 @@ import NavSideBar from "./navigation/NavSideBar";
 
 import '@awsui/global-styles/index.css';
 import {AppLayout, Flashbar, FlashbarProps} from "@awsui/components-react";
+import * as awsui from "@awsui/components-react";
 import ServerEndpoint from "./communication/ServerEndpoint";
 import Breadcrumbs from "./navigation/Breadcrumbs";
 import { SERVICE_ROUTE_HREF_PREFIX } from "./util/constNames";
@@ -26,6 +27,8 @@ interface AppState {
 
 // @ts-ignore
 window.h = React;
+// @ts-ignore
+window.awsui = awsui;
 
 class App extends Component<any, AppState> {
   constructor(props: any) {
