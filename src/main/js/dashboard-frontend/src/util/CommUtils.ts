@@ -33,11 +33,14 @@ export enum APICall {
   unsubscribeToComponent = "unsubscribeToComponent",
   subscribeToComponentLogs = "subscribeToComponentLogs",
   unsubscribeToComponentLogs = "unsubscribeToComponentLogs",
+  subscribeToLogList = "subscribeToLogList",
+  unsubscribeToLogList = "unsubscribeToLogList",
 }
 export enum InternalAPICall {
   init = "init",
   forcePushComponentList = "forcePushComponentList",
   forcePushDependencyGraph = "forcePushDependencyGraph",
+  forcePushLogList = "forcePushLogList",
   ping = "ping",
 }
 
@@ -52,6 +55,7 @@ export enum MessageType {
   DEPS_GRAPH,
   COMPONENT_CHANGE,
   COMPONENT_LOGS,
+  LOG_LIST,
 }
 
 export interface DepGraphNode {
@@ -71,17 +75,9 @@ export interface ConfigMessage {
 
 export interface Log {
   name: string;
-  level: LogLevelType;
   log: string;
 }
-export enum LogLevelType {
-  ALL,
-  TRACE,
-  DEBUG,
-  INFO,
-  WARN,
-  ERROR,
-}
+
 export interface DeferredPromise {
   promise: Promise<any>;
   race: Promise<any>;

@@ -23,7 +23,7 @@ services:
   whileTrue:
     lifecycle:
       run:
-        echo "running big loop" && sleep 1000
+        while true; do echo "running big loop" && sleep 1; done
   definitelyBroken:
     lifecycle:
       run:

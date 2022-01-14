@@ -75,5 +75,12 @@ public interface DashboardAPI {
      */
     DepGraphNode[] getDependencyGraph();
 
+    /**
+     * Method to fetch the current list of log files.
+     *
+     * @return a list of log file names that currently exist under nucleus log directory.
+     */
+    String[] getLogList();
+
     ExtensionInfo[] getExtensions(String pageType, String component);
 }

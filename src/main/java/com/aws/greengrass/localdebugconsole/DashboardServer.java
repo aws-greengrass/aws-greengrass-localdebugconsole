@@ -8,28 +8,37 @@ package com.aws.greengrass.localdebugconsole;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.localdebugconsole.messageutils.DeviceDetails;
+import com.aws.greengrass.localdebugconsole.messageutils.LogItem;
 import com.aws.greengrass.localdebugconsole.messageutils.Message;
 import com.aws.greengrass.localdebugconsole.messageutils.MessageType;
 import com.aws.greengrass.localdebugconsole.messageutils.PackedRequest;
 import com.aws.greengrass.localdebugconsole.messageutils.Request;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
+import org.apache.commons.io.input.Tailer;
+import org.apache.commons.io.input.TailerListenerAdapter;
 import org.java_websocket.WebSocket;
 import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.net.ssl.SSLEngine;
@@ -47,9 +56,13 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             new DefaultConcurrentHashMap<>(HashSet::new);
     private final DefaultConcurrentHashMap<String, Set<WebSocket>> logWatchlist =
             new DefaultConcurrentHashMap<>(HashSet::new);
+    private final ConcurrentHashMap<String, Tailer> logTailers = new ConcurrentHashMap<>();
+
     @Getter(AccessLevel.PACKAGE)
     private final CompletableFuture<Object> started = new CompletableFuture<>();
     private final Authenticator authenticator;
+
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
                            Authenticator authenticator, Provider<SSLEngine> engineProvider) {
@@ -199,13 +212,28 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case subscribeToComponentLogs: {
-                    logWatchlist.get(req.args[0]).add(conn);
+                    String logFile = req.args[0];
+                    logWatchlist.get(logFile).add(conn);
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    if (!logTailers.containsKey(logFile)) {
+                        startLogTailer(logFile);
+                    }
                     break;
                 }
                 case unsubscribeToComponentLogs: {
-                    removeFromMapOfLists(logWatchlist, req.args[0], conn);
+                    String logFile = req.args[0];
+                    removeFromMapOfLists(logWatchlist, logFile, conn);
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+
+                    // If that was the last item, the mapping will be removed from logWatchlist
+                    // Stop the tailer if there's no watchers left
+                    //if (!logWatchlist.containsKey(logFile)) {
+                        logTailers.computeIfPresent(logFile, (k, tailer) -> {
+                            tailer.stop();
+                            System.out.println("Stopped tailer: " + logFile);
+                            return null;
+                        });
+                    //}
                     break;
                 }
                 case forcePushComponentList: {
@@ -215,6 +243,11 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                 }
                 case forcePushDependencyGraph: {
                     pushDependencyGraphUpdate();
+                    sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    break;
+                }
+                case forcePushLogList: {
+                    pushLogList();
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     break;
                 }
@@ -273,6 +306,14 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         }
     }
 
+    @Override
+    public void pushLogList() {
+        String[] logList = dashboardAPI.getLogList();
+        for (WebSocket conn : connections) {
+            sendIfOpen(conn, new Message(MessageType.LOG_LIST, -1, logList));
+        }
+    }
+
     void removeFromMapOfLists(Map<String, Set<WebSocket>> map, String key, WebSocket entry) {
         map.get(key).remove(entry);
         map.computeIfPresent(key, (k, v) -> {
@@ -292,6 +333,40 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                 // a normal occurrence if the dashboard is not connected, e.g. if the user closes the browser
             } catch (JsonProcessingException j) {
                 logger.atError().setCause(j).log("Unable to stringify the message: {}", msg);
+            }
+        }
+    }
+
+    /**
+     * Attempts to start a file tailer of the given log file.
+     * Returns true if successful.
+     */
+    private void startLogTailer(String logFilename) {
+        Path logDir = LogConfig.getRootLogConfig().getStoreDirectory().toAbsolutePath();
+        Path logFilePath = logDir.resolve(logFilename);
+        if (!Files.exists(logFilePath)) {
+            logger.error("Cannot start log tailer. The log file {} doesn't exist", logFilename);
+            return;
+        }
+        Tailer tailer = new Tailer(logFilePath.toFile(), new TailerListenerAdapter() {
+            @Override
+            public void handle(String line) {
+                pushLogLine(logFilename, line);
+            }
+
+            @Override
+            public void handle(Exception e) {
+                logger.atError().cause(e).log("Error tailing file {}", logFilename);
+            }
+        });
+        executorService.submit(tailer);
+        logTailers.put(logFilename, tailer);
+    }
+
+    private void pushLogLine(String logName, String logLine) {
+        if (logWatchlist.containsKey(logName)) {
+            for (WebSocket conn : logWatchlist.get(logName)) {
+                sendIfOpen(conn, new Message(MessageType.COMPONENT_LOGS, -1, new LogItem(logName, logLine)));
             }
         }
     }

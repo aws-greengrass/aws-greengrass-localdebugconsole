@@ -22,8 +22,8 @@ const footerItems: SideNavigationProps.Item[] = [
     text: "Documentation",
     // Get proper docs link depending on if we're using the China partition
     // @ts-ignore
-    href: window.CHINA_PARTITION ? "https://docs.amazonaws.cn/console/greengrass/v2/local"
-        : "https://docs.aws.amazon.com/console/greengrass/v2/local",
+    href: window.CHINA_PARTITION ? "https://docs.amazonaws.cn/greengrass/v2/developerguide/local-debug-console-component.html"
+        : "https://docs.aws.amazon.com/greengrass/v2/developerguide/local-debug-console-component.html",
     external: true,
   },
 ];

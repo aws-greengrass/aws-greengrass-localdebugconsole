@@ -86,4 +86,9 @@ public enum APICalls {
      * Utility called by the client to get the current wireframe dependency graph.
      */
     forcePushDependencyGraph,
+
+    /**
+     * Utility called by the client to get the current list of log files.
+     */
+    forcePushLogList,
 }

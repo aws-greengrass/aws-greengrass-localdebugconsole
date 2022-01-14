@@ -81,9 +81,11 @@ class DashboardIntegrationTest {
     @BeforeAll
     static void setup() throws URISyntaxException, InterruptedException, TimeoutException, ExecutionException {
         System.setProperty("root", rootDir.toAbsolutePath().toString());
+        System.setProperty("log.store", "FILE");
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
-        kernel.parseArgs("-i", KernelCommunicatorTest.class.getResource("dashboardIntegTest.yaml").toString());
+        kernel.parseArgs("-u", "tiangac", "-i",
+                KernelCommunicatorTest.class.getResource("dashboardIntegTest.yaml").toString());
         kernel.getContext().addGlobalStateChangeListener(countdownDefinitelyBroken);
         kernel.getContext().addGlobalStateChangeListener(consoleRunning);
         kernel.launch();

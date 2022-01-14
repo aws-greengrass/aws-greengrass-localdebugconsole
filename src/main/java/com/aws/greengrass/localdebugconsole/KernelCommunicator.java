@@ -33,6 +33,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -197,6 +200,17 @@ public class KernelCommunicator implements DashboardAPI {
                                 .map(e -> new Dependency(e.getKey().getName(),
                                         e.getValue().equals(DependencyType.HARD))).toArray(Dependency[]::new)))
                 .toArray(DepGraphNode[]::new);
+    }
+
+    @Override
+    public synchronized String[] getLogList() {
+        Path logPath = LogConfig.getRootLogConfig().getStoreDirectory().toAbsolutePath();
+        try {
+            return Files.list(logPath).map(Path::getFileName).map(Path::toString).sorted().toArray(String[]::new);
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Failed to list log files under path: {}", logPath);
+            return new String[0];
+        }
     }
 
     @Override

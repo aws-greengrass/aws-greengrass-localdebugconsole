@@ -25,4 +25,9 @@ public interface KernelMessagePusher {
      * Called when the wireframe dependency graph is updated.
      */
     void pushDependencyGraphUpdate();
+
+    /**
+     * Called when log file list changes.
+     */
+    void pushLogList();
 }

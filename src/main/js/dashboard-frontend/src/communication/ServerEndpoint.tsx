@@ -30,11 +30,13 @@ export default class ServerEndpoint {
 
   reqList: Map<RequestID, DeferredPromise> = new Map();
   componentListSubscribers: Set<Function> = new Set();
+  logListSubscribers: Set<Function> = new Set();
   dependencyGraphSubscribers: Set<Function> = new Set();
   componentSubscribers: Map<string, Set<Function>> = new Map();
   componentLogSubscribers: Map<string, Set<Function>> = new Map();
 
   cachedComponentList: ComponentItem[] = [];
+  cachedLogList: String[] = [];
   cachedDependencyGraph: Map<string, Dependency[]> = new Map();
 
   constructor(portno: number, username: string, password: string, timeout: number, onError: (m: ReactNode) => void) {
@@ -119,7 +121,7 @@ export default class ServerEndpoint {
         break;
       }
       case MessageType.COMPONENT_LIST: {
-        this.listHandler(msg);
+        this.componentListHandler(msg);
         break;
       }
       case MessageType.DEPS_GRAPH: {
@@ -134,6 +136,10 @@ export default class ServerEndpoint {
         this.logHandler(msg);
         break;
       }
+      case MessageType.LOG_LIST: {
+        this.logListHandler(msg);
+        break;
+      }
     }
   };
 
@@ -142,10 +148,15 @@ export default class ServerEndpoint {
     //@ts-ignore
     this.reqList.get(msg.requestID).resolve(msg.payload);
   };
-  listHandler = (msg: Message) => {
+  componentListHandler = (msg: Message) => {
     let list: ComponentItem[] = msg.payload;
     this.cachedComponentList = list;
     this.componentListSubscribers.forEach((callback) => callback(list));
+  };
+  logListHandler = (msg: Message) => {
+    let list: String[] = msg.payload;
+    this.cachedLogList = list;
+    this.logListSubscribers.forEach((callback) => callback(list));
   };
   depsHandler = (msg: Message) => {
     let pre: DepGraphNode[] = msg.payload;
@@ -164,7 +175,7 @@ export default class ServerEndpoint {
   logHandler = (msg: Message) => {
     let log: Log = msg.payload;
     let set = this.componentLogSubscribers.get(log.name);
-    if (set) set.forEach((callback) => callback(log));
+    if (set) set.forEach((callback) => callback(log.log));
   };
 
   /**
@@ -272,6 +283,22 @@ export default class ServerEndpoint {
           }
         }
         break;
+      }
+      case APICall.subscribeToLogList: {
+        this.logListSubscribers.add(messageHandler);
+        if (this.cachedLogList.length === 0) {
+          return this.sendRequest({
+            call: InternalAPICall.forcePushLogList,
+            args: [],
+          });
+        } else {
+          messageHandler(this.cachedLogList);
+        }
+        return Promise.resolve(true);
+      }
+      case APICall.unsubscribeToLogList: {
+        this.logListSubscribers.delete(messageHandler);
+        return Promise.resolve(true);
       }
     }
     return this.sendRequest(request);
