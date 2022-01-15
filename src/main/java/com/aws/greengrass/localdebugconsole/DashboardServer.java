@@ -28,9 +28,15 @@ import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -64,6 +71,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     private final Authenticator authenticator;
 
     private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private Future<Void> logDirWatcherFuture;
 
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
                            Authenticator authenticator, Provider<SSLEngine> engineProvider) {
@@ -91,6 +99,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             ((KernelCommunicator) dashboardAPI).linkWithPusher(this);
             ((KernelCommunicator) dashboardAPI).linkWithKernel();
         }
+        startLogDirWatcherIfNotRunning();
         start();
     }
 
@@ -313,7 +322,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     @Override
     public void pushComponentChange(String name) {
         if (statusWatchlist.containsKey(name)) {
-            statusWatchlist.computeIfPresent(name, (k,set) -> {
+            statusWatchlist.computeIfPresent(name, (k, set) -> {
                 for (WebSocket conn : set) {
                     sendIfOpen(conn, new Message(MessageType.COMPONENT_CHANGE, -1, dashboardAPI.getComponent(name)));
                 }
@@ -331,7 +340,8 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
 
     @Override
     public void pushLogList() {
-        String[] logList = dashboardAPI.getLogList();
+        System.out.println("push log list");
+        String[] logList = getLogList();
         for (WebSocket conn : connections) {
             sendIfOpen(conn, new Message(MessageType.LOG_LIST, -1, logList));
         }
@@ -357,6 +367,48 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             } catch (JsonProcessingException j) {
                 logger.atError().setCause(j).log("Unable to stringify the message: {}", msg);
             }
+        }
+    }
+
+    private String[] getLogList() {
+        Path logPath = LogConfig.getRootLogConfig().getStoreDirectory().toAbsolutePath();
+        try {
+            return Files.list(logPath).map(Path::getFileName).map(Path::toString).sorted().toArray(String[]::new);
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Failed to list log files under path: {}", logPath);
+            return new String[0];
+        }
+    }
+
+    private void startLogDirWatcherIfNotRunning() {
+        if (logDirWatcherFuture != null && !logDirWatcherFuture.isDone()) {
+            System.out.println("Not starting log dir watcher. Already running");
+            return;
+        }
+
+        Path logDir = LogConfig.getRootLogConfig().getStoreDirectory().toAbsolutePath();
+        try {
+            WatchService watchService;
+            watchService = FileSystems.getDefault().newWatchService();
+            logDir.register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE);
+            // TODO cleanup prints
+            System.out.println("starting watch service");
+            logDirWatcherFuture = executorService.submit(() -> {
+                System.out.println("started watch service");
+                WatchKey key;
+                while (true) {
+                    key = watchService.take();  // blocks until next event
+                    // pollEvents to actually dequeue them. Otherwise, events stay there and give infinite loop
+                    System.out.println("take returned");
+                    for (WatchEvent<?> event : key.pollEvents()) {
+                        System.out.println(event);
+                    }
+                    pushLogList();
+                    key.reset();
+                }
+            });
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Failed to watch log directory changes");
         }
     }
 

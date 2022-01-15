@@ -83,7 +83,6 @@ class LogBrowser extends Component {
   }
 
   handleServerPushComponentLog = (s: String) => {
-    console.log(s);
     this.setState({logItems: [...this.state.logItems, {a: s}]})
   };
 
