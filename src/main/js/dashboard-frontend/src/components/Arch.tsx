@@ -7,6 +7,7 @@ import React, { Component } from "react";
 import {Box, ColumnLayout, Container, SpaceBetween} from "@awsui/components-react";
 import { SERVER } from "../index";
 import { APICall } from "../util/CommUtils";
+import PluginComponent from "./PluginComponent";
 
 /**
  * Machine architecture specs
@@ -72,20 +73,23 @@ class Arch extends Component {
     ];
 
     return (
-      <Container header={<h2>Device Details</h2>}>
-        <ColumnLayout columns={4} variant="text-grid">
-          {items.map((group) => (
-              <SpaceBetween size="xs">
-              {group.map((item) => (
-                <div>
-                  <Box margin={{bottom: "xxxs"}} color="text-label">{item.field}</Box>
-                  <div>{item.value}</div>
-                </div>
-              ))}
-              </SpaceBetween>
-          ))}
-        </ColumnLayout>
-      </Container>
+      <>
+        <Container header={<h2>Device Details</h2>}>
+          <ColumnLayout columns={4} variant="text-grid">
+            {items.map((group) => (
+                <SpaceBetween size="xs">
+                {group.map((item) => (
+                  <div>
+                    <Box margin={{bottom: "xxxs"}} color="text-label">{item.field}</Box>
+                    <div>{item.value}</div>
+                  </div>
+                ))}
+                </SpaceBetween>
+            ))}
+          </ColumnLayout>
+        </Container>
+        <PluginComponent pageType={"DeviceDetails"}/>
+      </>
     );
   }
 }

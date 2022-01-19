@@ -8,6 +8,7 @@ import ComponentTable from "./ComponentTable";
 import { ALL_DEP_GRAPH_NODES } from "../util/constNames";
 import DependencyGraph from "./details/DependencyGraph";
 import {Header} from "@awsui/components-react";
+import PluginComponent from "./PluginComponent";
 
 class Overview extends Component {
   render() {
@@ -22,6 +23,7 @@ class Overview extends Component {
             <div className="col-12 col-l-8 col-xl-6">
               <DependencyGraph rootComponent={ALL_DEP_GRAPH_NODES} />
             </div>
+            <PluginComponent pageType="Overview" />
           </div>
         </div>
       </>

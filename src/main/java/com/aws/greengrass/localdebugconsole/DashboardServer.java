@@ -229,7 +229,12 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     }
                     plugins.forEach((p) -> {
                         if (p.getApiServiceName().equals(packedRequest.request.args[0])) {
-                            p.onMessage(packedRequest, (m) -> sendIfOpen(conn, m), conn);
+                            try {
+                                p.onMessage(packedRequest, (m) -> sendIfOpen(conn, m), conn);
+                            } catch (Throwable t) {
+                                logger.atError().log("Error running dashboard plugin onMessage {}",
+                                                p.getApiServiceName(), t);
+                            }
                         }
                     });
                     break;
@@ -247,7 +252,14 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         connections.remove(conn);
         statusWatchlist.forEach((name, set) -> set.remove(conn));
         logWatchlist.forEach((name, set) -> set.remove(conn));
-        plugins.forEach(p -> p.onConnectionClose(conn));
+        plugins.forEach(p -> {
+            try {
+                p.onConnectionClose(conn);
+            } catch (Throwable t) {
+                logger.atError().log("Error running dashboard plugin onConnectionClose {}",
+                        p.getApiServiceName(), t);
+            }
+        });
         logger.atInfo()
                 .log("closed {} with exit code {}, additional info: {}", conn.getRemoteSocketAddress(), code, reason);
     }
