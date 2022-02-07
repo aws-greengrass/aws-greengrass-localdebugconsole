@@ -81,4 +81,24 @@ public enum APICalls {
      * Utility called by the client to get the current wireframe dependency graph.
      */
     forcePushDependencyGraph,
+
+    /**
+     * Forward call to plugin specified by the first argument (if it exists).
+     */
+    pluginCall,
+
+    /**
+     * Utility called by the client to subscribe to a local IPC topic.
+     */
+    subscribeToPubSubTopic,
+
+    /**
+     * Utility called by the client to publish to a local IPC topic.
+     */
+    publishToPubSubTopic,
+
+    /**
+     * Utility called by the client to unsubscribe to a local IPC topic.
+     */
+    unsubscribeToPubSubTopic,
 }

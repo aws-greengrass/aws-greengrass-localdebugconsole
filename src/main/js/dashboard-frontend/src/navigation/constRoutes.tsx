@@ -8,6 +8,7 @@ import Overview from "../components/Overview";
 import Arch from "../components/Arch";
 import { SERVICE_ROUTE_HREF_PREFIX } from "../util/constNames";
 import ComponentDetail from "../components/details/ComponentDetail";
+import PubSub from "../components/PubSubDebugger";
 
 interface RouteType {
   routePath: string; // displayed in the url
@@ -43,5 +44,11 @@ export const routes: RouteType[] = [
     title: "Component Details",
     show: false,
     main: () => <ComponentDetail />,
+  },
+  {
+    routePath: "/pubsub",
+    title: "PubSub",
+    show: true,
+    main: () => <PubSub/>,
   },
 ];

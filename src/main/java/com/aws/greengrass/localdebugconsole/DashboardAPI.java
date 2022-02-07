@@ -5,10 +5,13 @@
 
 package com.aws.greengrass.localdebugconsole;
 
+import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.localdebugconsole.messageutils.ComponentItem;
 import com.aws.greengrass.localdebugconsole.messageutils.ConfigMessage;
 import com.aws.greengrass.localdebugconsole.messageutils.DepGraphNode;
 import com.aws.greengrass.localdebugconsole.messageutils.DeviceDetails;
+
+import java.util.function.Consumer;
 
 public interface DashboardAPI {
 

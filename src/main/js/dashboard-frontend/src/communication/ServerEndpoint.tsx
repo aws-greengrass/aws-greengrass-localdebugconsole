@@ -18,6 +18,8 @@ import {
 } from "../util/CommUtils";
 import {ComponentItem} from "../util/ComponentItem";
 import React, {ReactNode} from "react";
+import {SERVER} from "../index";
+import {CommunicationMessage} from "../util/CommunicationMessage";
 
 export default class ServerEndpoint {
   portno: number;
@@ -35,6 +37,8 @@ export default class ServerEndpoint {
 
   cachedComponentList: ComponentItem[] = [];
   cachedDependencyGraph: Map<string, Dependency[]> = new Map();
+
+  pubSubTopicsSubscribers: Map<string, Set<Function>> = new Map();
 
   constructor(portno: number, username: string, password: string, timeout: number, onError: (m: ReactNode) => void) {
     this.portno = portno;
@@ -133,6 +137,10 @@ export default class ServerEndpoint {
         this.logHandler(msg);
         break;
       }
+      case MessageType.PUB_SUB_MSG: {
+        this.pubSubMessageHandler(msg);
+        break;
+      }
     }
   };
 
@@ -165,19 +173,29 @@ export default class ServerEndpoint {
     let set = this.componentLogSubscribers.get(log.name);
     if (set) set.forEach((callback) => callback(log));
   };
+  pubSubMessageHandler = (msg: Message) => {
+    let pubsubMsg : CommunicationMessage = msg.payload;
+    let set = this.pubSubTopicsSubscribers.get(pubsubMsg.topic);
+    console.log("Set: ", set);
+    if (set) set.forEach((callback) => callback(pubsubMsg));
+  }
 
   /**
    * Sends an API call to the server and returns a promise with the response. See internal http API for a list
    * of available calls.
    * @param request a Request object
+   * @param reqId optional request ID
    */
-  async sendRequest(request: Request): Promise<any> {
-    let reqID = requestID();
+  async sendRequest(request: Request, reqId?: RequestID): Promise<any> {
+    await SERVER.initConnections();
+    if (typeof reqId === "undefined") {
+      reqId = requestID();
+    }
     let deferredPromise = this.deferRequest({
-      requestID: reqID,
+      requestID: reqId,
       request: request,
     });
-    this.reqList.set(reqID, deferredPromise);
+    this.reqList.set(reqId, deferredPromise);
     return deferredPromise.race;
   }
 
@@ -261,6 +279,32 @@ export default class ServerEndpoint {
       }
       case APICall.unsubscribeToComponentLogs: {
         let pot = this.componentLogSubscribers.get(request.args[0]);
+        if (pot !== undefined) {
+          pot.delete(messageHandler);
+          if (pot.size === 0) {
+            return this.sendRequest(request);
+          } else {
+            return Promise.resolve(true);
+          }
+        }
+        break;
+      }
+      case APICall.subscribeToPubSubTopic: {
+        let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
+        if (pot === undefined || pot.size === 0) {
+          this.pubSubTopicsSubscribers.set(
+              request.args[0],
+              new Set([messageHandler])
+          );
+          return this.sendRequest(request);
+        } else {
+          pot.add(messageHandler);
+          return Promise.resolve(true);
+        }
+      }
+      case APICall.unsubscribeToPubSubTopic: {
+        console.log("Unsubscribe to topic: ", request.args[0]);
+        let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
         if (pot !== undefined) {
           pot.delete(messageHandler);
           if (pot.size === 0) {
