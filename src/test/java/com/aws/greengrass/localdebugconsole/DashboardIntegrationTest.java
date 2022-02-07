@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.localdebugconsole;
 
+import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -193,6 +194,24 @@ class DashboardIntegrationTest {
                 subscribers.remove(conn).forEach(Thread::interrupt);
             }
         });
+        System.out.println(kernel.getContext().get(SimpleHttpServer.class).port);
+        // Thread.sleep(100_000);
+
+        PubSubIPCEventStreamAgent testAgent = kernel.getContext().get(PubSubIPCEventStreamAgent.class);
+        Thread t = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(5_000);
+                } catch (InterruptedException e) {
+                    System.out.println("Subscription dropped");
+                    return;
+                }
+                testAgent.publish("Hackathon", "This is a test sent every 5 seconds for Hackathon demo".getBytes(),
+                        "LocalDebugConsole");;
+            }
+        });
+        t.start();
+        Thread.sleep(Long.MAX_VALUE);
         assertTrue(dm.depGraphLatch.await(200, TimeUnit.MILLISECONDS));
     }
 

@@ -15,6 +15,7 @@ public class MessageType {
     public static final int COMPONENT_CHANGE = 3;
     public static final int COMPONENT_LOGS = 4;
     public static final int SUBSCRIPTION_EVENT = 5;
+    public static final int PUB_SUB_MSG = 6;
 
     private MessageType() {
     }
