@@ -141,12 +141,13 @@ export default class ServerEndpoint {
       case MessageType.SUBSCRIPTION_EVENT: {
         this.subscriptionHandler(msg);
         break;
+      }
       case MessageType.PUB_SUB_MSG: {
         this.pubSubMessageHandler(msg);
         break;
       }
     }
-  };
+  }
 
   responseHandler = (msg: Message) => {
     // resolves the promise returned by sendRequest
@@ -302,7 +303,8 @@ export default class ServerEndpoint {
       case APICall.pluginCall: {
         const reqId = requestID();
         this.genericSubscribers.set(reqId, messageHandler);
-        return this.sendRequest(request, reqId)
+        return this.sendRequest(request, reqId);
+      }
       case APICall.subscribeToPubSubTopic: {
         let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
         if (pot === undefined || pot.size === 0) {

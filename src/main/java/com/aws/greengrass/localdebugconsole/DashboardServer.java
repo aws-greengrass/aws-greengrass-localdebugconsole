@@ -28,14 +28,12 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
-import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArraySet;
-import javax.inject.Inject;
+import java.util.function.Consumer;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.net.ssl.SSLEngine;
@@ -253,11 +251,12 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                             try {
                                 p.onMessage(packedRequest, (m) -> sendIfOpen(conn, m), conn);
                             } catch (Throwable t) {
-                                logger.atError().log("Error running dashboard plugin onMessage {}",
-                                                p.getApiServiceName(), t);
+                                logger.atError()
+                                        .log("Error running dashboard plugin onMessage {}", p.getApiServiceName(), t);
                             }
                         }
                     });
+                }
                 case subscribeToPubSubTopic: {
                     if (pubSubWatchList.get(req.args[0]).isEmpty()) {
                         pubSubIPCAgent.subscribe(req.args[0], pubSubCallback, SERVICE_NAME);
