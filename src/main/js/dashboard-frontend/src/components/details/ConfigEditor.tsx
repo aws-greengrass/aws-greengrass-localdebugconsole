@@ -172,9 +172,7 @@ export class ConfigEditor extends React.Component<
       .then((config) => {
         if (config.successful) {
           this.setState({ value: config.yaml });
-          if (this.state.service.origin === USER_CREATED) {
-            this.setState({ allowEdit: true });
-          }
+          this.setState({ allowEdit: true });
         } else {
           this.updateFlashbar(false, config.errorMsg);
         }
