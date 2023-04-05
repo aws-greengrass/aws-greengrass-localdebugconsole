@@ -176,7 +176,6 @@ export default class ServerEndpoint {
   pubSubMessageHandler = (msg: Message) => {
     let pubsubMsg : CommunicationMessage = msg.payload;
     let set = this.pubSubTopicsSubscribers.get(pubsubMsg.topic);
-    console.log("Set: ", set);
     if (set) set.forEach((callback) => callback(pubsubMsg));
   }
 
@@ -303,7 +302,6 @@ export default class ServerEndpoint {
         }
       }
       case APICall.unsubscribeToPubSubTopic: {
-        console.log("Unsubscribe to topic: ", request.args[0]);
         let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
         if (pot !== undefined) {
           pot.delete(messageHandler);

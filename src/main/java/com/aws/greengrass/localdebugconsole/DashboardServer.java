@@ -28,14 +28,12 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
-import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArraySet;
-import javax.inject.Inject;
+import java.util.function.Consumer;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.net.ssl.SSLEngine;
@@ -244,6 +242,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                 }
                 case publishToPubSubTopic: {
                     pubSubIPCAgent.publish(req.args[0], req.args[1].getBytes(), SERVICE_NAME);
+                    sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     break;
                 }
                 case unsubscribeToPubSubTopic: {
