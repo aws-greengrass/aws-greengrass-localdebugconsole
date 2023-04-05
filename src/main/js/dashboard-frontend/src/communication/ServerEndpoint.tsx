@@ -25,6 +25,7 @@ export default class ServerEndpoint {
   timeout: number; // in seconds
   initReqID: number = -1024;
   conn: WebSocket;
+  onError: (m: React.ReactNode) => void;
 
   _connectionPromise: DeferredPromise;
 
@@ -42,6 +43,7 @@ export default class ServerEndpoint {
   constructor(portno: number, username: string, password: string, timeout: number, onError: (m: ReactNode) => void) {
     this.portno = portno;
     this.timeout = timeout;
+    this.onError = onError;
 
     // declare connections
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -55,7 +57,9 @@ export default class ServerEndpoint {
     this.conn.onmessage = this.messageHandler;
     this.conn.onclose = (event) => {
       let reason: ReactNode = "Unknown reason";
-      if (event.code === 1002) {
+      if (event.code === 1001) {
+        reason = "Server closed";
+      } else if (event.code === 1002) {
         reason = "An endpoint is terminating the connection due to a protocol error";
       } else if (event.code === 1003) {
         reason = "An endpoint is terminating the connection because it has received a type of data it cannot accept.";
@@ -86,7 +90,7 @@ export default class ServerEndpoint {
       }
 
       // Lower codes are normal events which we want to ignore
-      if (event.code >= 1002) {
+      if (event.code >= 1001) {
         this._connectionPromise.reject(reason);
         onError(reason);
       }
@@ -188,6 +192,10 @@ export default class ServerEndpoint {
     await this.initConnections();
     if (typeof reqId === "undefined") {
       reqId = requestID();
+    }
+    if (this.conn.readyState !== this.conn.OPEN) {
+      this.onError("WebSocket not connected");
+      return;
     }
     let deferredPromise = this.deferRequest({
       requestID: reqId,
