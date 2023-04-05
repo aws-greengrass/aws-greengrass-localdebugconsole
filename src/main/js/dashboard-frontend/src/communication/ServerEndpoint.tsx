@@ -18,7 +18,6 @@ import {
 } from "../util/CommUtils";
 import {ComponentItem} from "../util/ComponentItem";
 import React, {ReactNode} from "react";
-import {SERVER} from "../index";
 import {CommunicationMessage} from "../util/CommunicationMessage";
 
 export default class ServerEndpoint {
@@ -186,7 +185,7 @@ export default class ServerEndpoint {
    * @param reqId optional request ID
    */
   async sendRequest(request: Request, reqId?: RequestID): Promise<any> {
-    await SERVER.initConnections();
+    await this.initConnections();
     if (typeof reqId === "undefined") {
       reqId = requestID();
     }

@@ -32,7 +32,6 @@ export enum APICall {
   unsubscribeToComponent = "unsubscribeToComponent",
   subscribeToComponentLogs = "subscribeToComponentLogs",
   unsubscribeToComponentLogs = "unsubscribeToComponentLogs",
-  pluginCall = "pluginCall",
   subscribeToPubSubTopic = "subscribeToPubSubTopic",
   publishToPubSubTopic = "publishToPubSubTopic",
   unsubscribeToPubSubTopic = "unsubscribeToPubSubTopic",

@@ -63,7 +63,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         pubSubWatchList.computeIfPresent(message.getTopic(), (k, set) -> {
             for (WebSocket conn : set) {
                 CommunicationMessage resMessage = new CommunicationMessage(message.getTopic(), new String(message.getPayload()));
-                sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, -1, resMessage));
+                sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
             }
             return set;
         });
@@ -286,7 +286,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     @Override
     public void pushComponentListUpdate() {
         for (WebSocket conn : connections) {
-            sendIfOpen(conn, new Message(MessageType.COMPONENT_LIST, -1, dashboardAPI.getComponentList()));
+            sendIfOpen(conn, new Message(MessageType.COMPONENT_LIST, dashboardAPI.getComponentList()));
         }
     }
 
@@ -295,7 +295,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         if (statusWatchlist.containsKey(name)) {
             statusWatchlist.computeIfPresent(name, (k,set) -> {
                 for (WebSocket conn : set) {
-                    sendIfOpen(conn, new Message(MessageType.COMPONENT_CHANGE, -1, dashboardAPI.getComponent(name)));
+                    sendIfOpen(conn, new Message(MessageType.COMPONENT_CHANGE, dashboardAPI.getComponent(name)));
                 }
                 return set;
             });
@@ -305,7 +305,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     @Override
     public void pushDependencyGraphUpdate() {
         for (WebSocket conn : connections) {
-            sendIfOpen(conn, new Message(MessageType.DEPS_GRAPH, -1, dashboardAPI.getDependencyGraph()));
+            sendIfOpen(conn, new Message(MessageType.DEPS_GRAPH, dashboardAPI.getDependencyGraph()));
         }
     }
 
