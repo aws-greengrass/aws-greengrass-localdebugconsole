@@ -249,7 +249,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case unsubscribeToPubSubTopic: {
-                    SubscribeRequest subReq = pubSubWatchList.get(conn).get(req.args[0]);
+                    SubscribeRequest subReq = pubSubWatchList.get(conn).remove(req.args[0]);
                     if (subReq != null) {
                         pubSubIPCAgent.unsubscribe(subReq);
                     }

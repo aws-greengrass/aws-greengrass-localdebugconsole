@@ -4,7 +4,7 @@
  */
 
 import "./index.css";
-import React, {ReactNode, Suspense, useState} from "react";
+import React, {createContext, ReactNode, Suspense, useState} from "react";
 import ReactDOM from "react-dom";
 
 import { HashRouter, Route, Switch, Redirect } from "react-router-dom";
@@ -12,13 +12,21 @@ import { routes } from "./navigation/constRoutes";
 import NavSideBar from "./navigation/NavSideBar";
 
 import "@cloudscape-design/global-styles/index.css"
-import {AppLayout, Box, Flashbar, FlashbarProps, Spinner} from "@cloudscape-design/components";
+import {
+    AppLayout,
+    Box,
+    Flashbar,
+    FlashbarProps,
+    Spinner,
+    Toggle
+} from "@cloudscape-design/components";
 import ServerEndpoint from "./communication/ServerEndpoint";
 import Breadcrumbs from "./navigation/Breadcrumbs";
 import { SERVICE_ROUTE_HREF_PREFIX } from "./util/constNames";
 import {ErrorBoundary} from "react-error-boundary";
 import createPersistedState from 'use-persisted-state';
 import generateUniqueId from "./util/generateUniqueId";
+import {applyMode, Mode} from "@cloudscape-design/global-styles";
 
 
 export var SERVER: ServerEndpoint;
@@ -73,10 +81,19 @@ const Routes = ({apiResource}: {apiResource: any}) => {
 }
 
 const useNavOpenState = createPersistedState<boolean>("gg.navOpen");
+const useDarkModeState = createPersistedState<boolean>("gg.darkMode");
+export const DefaultContext = createContext<{darkMode?: boolean}>({});
+
 
 const AppFunc = () => {
     const [flashItems, setFlashItems] = useState([] as FlashbarProps.MessageDefinition[]);
     const [navigationOpen, setNavigationOpen] = useNavOpenState(true);
+    const [darkMode, setDarkMode] = useDarkModeState(window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (darkMode) {
+        applyMode(Mode.Dark);
+    } else {
+        applyMode(Mode.Light);
+    }
 
     const addFlashbarItem = (item: FlashbarProps.MessageDefinition) => {
         item.dismissible = true;
@@ -100,7 +117,12 @@ const AppFunc = () => {
     return (
         <HashRouter>
             <AppLayout
-                navigation={<NavSideBar />}
+                navigation={<>
+                    <NavSideBar />
+                    <Box margin={{left: "xl"}}>
+                        <Toggle checked={darkMode} onChange={(e) => setDarkMode(e.detail.checked)}>Dark mode</Toggle>
+                    </Box>
+                </>}
                 breadcrumbs={<Breadcrumbs />}
                 notifications={<Flashbar items={flashItems} />}
                 navigationOpen={navigationOpen}
@@ -118,7 +140,9 @@ const AppFunc = () => {
                             Loading... <Spinner size={"big"}/>
                         </Box>
                     }>
-                        <Routes apiResource={resource}/>
+                        <DefaultContext.Provider value={{darkMode}}>
+                            <Routes apiResource={resource}/>
+                        </DefaultContext.Provider>
                     </Suspense>
                 </ErrorBoundary>
                 }

@@ -3,30 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, {Component} from "react";
+import React, {useCallback, useRef, useState} from "react";
 import {withRouter} from "react-router-dom";
 
 import {
     Box,
-    Button,
+    Button, CollectionPreferences, CollectionPreferencesProps,
     Container,
+    ContentLayout,
     Form,
     FormField,
     Grid,
-    Header, Icon,
-    Input, Link,
+    Header,
+    Icon,
+    Input,
+    Link, Pagination,
     SpaceBetween,
     Table,
-    Tabs, Textarea,
+    Tabs,
+    Textarea,
 } from "@cloudscape-design/components";
 
 import {SERVER} from "../index";
 import {APICall} from "../util/CommUtils";
 import {CommunicationMessage} from "../util/CommunicationMessage";
-
-interface ServiceTableProps {
-    title: string;
-}
+import {useCollection} from "@cloudscape-design/collection-hooks";
 
 interface Message {
     binaryPayload: string;
@@ -34,231 +35,254 @@ interface Message {
     topic: string;
 }
 
-interface PubSubState {
-    selectedTopic: string,
-    topicInputValue: string,
-    messageInputValue: string,
-    topicsAndMessages: { [key: string]: Message[] },
-}
+const PubSub = () => {
+    const [selectedTopic, setSelectedTopic] = useState("");
+    const [topicInputValue, setTopicInputValue] = useState("");
+    const [messageInputValue, setMessageInputValue] = useState("");
+    const [topicsAndMessages, setTopicsAndMessages] = useState<{ [key: string]: Message[] }>({});
+    const topicsAndMessagesRef = useRef<typeof topicsAndMessages>();
+    topicsAndMessagesRef.current = topicsAndMessages
 
-class PubSubDebugger extends Component<any & ServiceTableProps,
-    PubSubState> {
-    state: PubSubState = {
-        selectedTopic: "",
-        topicInputValue: "",
-        messageInputValue: "",
-        topicsAndMessages: {},
-    };
-
-    async componentDidMount() {
-        await SERVER.initConnections();
-    }
-
-    handleNewMessage = (message: CommunicationMessage) => {
-        const messageList = this.state.topicsAndMessages[message.subscribedTopic];
+    const handleNewMessage = useCallback((message: CommunicationMessage) => {
+        const messageList = topicsAndMessagesRef.current![message.subscribedTopic];
         messageList.push({binaryPayload: message.payload, received: new Date(), topic: message.topic});
-        this.setState({
-            topicsAndMessages: {
-                ...this.state.topicsAndMessages,
-                [message.subscribedTopic]: messageList,
-            }
-        })
-    };
+        setTopicsAndMessages((old) => ({
+            ...old,
+            [message.subscribedTopic]: messageList,
+        }));
+    }, [topicsAndMessagesRef]);
 
-    onTopicSelectionChange(e: any) {
-        this.setState({
-            selectedTopic: e.detail.selectedItems[0]
-        });
-    }
-
-    onTopicInputValueChange(topic: string) {
-        this.setState({topicInputValue: topic});
-    }
-
-    onMessageInputValueChange(message: string) {
-        this.setState({messageInputValue: message});
-    }
-
-    onSubscribeTopicSubmit() {
-        const topic = this.state.topicInputValue;
-        if (topic in this.state.topicsAndMessages) {
+    const onSubscribeTopicSubmit = () => {
+        const topic = topicInputValue;
+        if (topic in topicsAndMessages) {
             return;
         }
 
-        this.setState({
-            selectedTopic: topic,
-            topicsAndMessages: {
-                ...this.state.topicsAndMessages,
-                [topic]: []
-            }
-        })
+        setSelectedTopic(topic);
+        setTopicsAndMessages((old) => ({
+            ...old,
+            [topic]: []
+        }));
         SERVER.sendSubscriptionMessage(
-            {call: APICall.subscribeToPubSubTopic, args: [this.state.topicInputValue]},
-            this.handleNewMessage
+            {call: APICall.subscribeToPubSubTopic, args: [topicInputValue]},
+            handleNewMessage
         );
     }
 
-    onPublishTopicSubmit() {
-        SERVER.sendRequest({
-            call: APICall.publishToPubSubTopic,
-            args: [this.state.topicInputValue, this.state.messageInputValue],
-        });
-    }
-
-    unsubscribeFromTopic(topic: string) {
-        if (!(topic in this.state.topicsAndMessages)) {
+    const unsubscribeFromTopic = (topic: string) => {
+        if (!(topic in topicsAndMessages)) {
             return;
         }
 
-        delete this.state.topicsAndMessages[topic];
-        const topics = Object.keys(this.state.topicsAndMessages);
+        delete topicsAndMessages[topic];
+        const topics = Object.keys(topicsAndMessages);
         let newTopic = "";
         if (topics.length !== 0) {
             newTopic = topics[0];
         }
-        this.setState({
-            selectedTopic: this.state.selectedTopic === topic ? newTopic : topic,
-            topicsAndMessages: {
-                ...this.state.topicsAndMessages
-            }
-        })
+        setSelectedTopic(selectedTopic === topic ? newTopic : topic);
+        setTopicsAndMessages({...topicsAndMessages});
         SERVER.sendSubscriptionMessage(
             {call: APICall.unsubscribeToPubSubTopic, args: [topic]},
-            this.handleNewMessage
+            handleNewMessage
         );
     }
 
-    render() {
-        const tabs = [
-            {
-                id: "tab1",
-                label: "Subscribe to a topic",
-                content: (
-                    <Form
-                        actions={
-                            <Button variant="primary" onClick={this.onSubscribeTopicSubmit.bind(this)}>Subscribe</Button>
-                        }
-                    >
-                        <SpaceBetween direction="vertical" size="l">
-                            <FormField label="Topic" description="The PubSub topic filter to subscribe to">
-                                <Input
-                                    placeholder="Topic filter"
-                                    value={this.state.topicInputValue}
-                                    onChange={event =>
-                                        this.onTopicInputValueChange(event.detail.value)
-                                    }
-                                />
-                            </FormField>
-                        </SpaceBetween>
-                    </Form>
-                ),
-            },
-            {
-                id: "tab2",
-                label: "Publish to a topic",
-                content: (
-                    <Form
-                        actions={
-                            <Button variant="primary" onClick={this.onPublishTopicSubmit.bind(this)}>Publish</Button>
-                        }
-                    >
-                        <SpaceBetween direction="vertical" size="l">
-                            <FormField label="Topic" description="The PubSub topic to publish on">
-                                <Input
-                                    value={this.state.topicInputValue}
-                                    onChange={event =>
-                                        this.onTopicInputValueChange(event.detail.value)
-                                    }
-                                />
-                            </FormField>
-                            <FormField label="Message payload">
-                                <Textarea
-                                    value={this.state.messageInputValue}
-                                    onChange={event =>
-                                        this.onMessageInputValueChange(event.detail.value)
-                                    }
-                                />
-                            </FormField>
-                        </SpaceBetween>
-                    </Form>
-                ),
-            },
-        ];
-
-        return (
-            <Box padding={{top: "m"}}>
-                <SpaceBetween direction="vertical" size="l">
-                    <Container>
-                        <Tabs tabs={tabs}></Tabs>
-                    </Container>
-                    <Container header={<Header variant="h2">Subscriptions</Header>}>
-                        <Grid gridDefinition={[
-                            {colspan: {xxs: 4}},
-                            {colspan: {xxs: 8}},
-                        ]}>
-                            <Table
-                                columnDefinitions={[
-                                    {
-                                        id: "variable",
-                                        header: "Topic",
-                                        cell: (e) => {
-                                            return <span>{e}<Box float="right"><Link onFollow={() => {
-                                                this.unsubscribeFromTopic(e);
-                                            }
-                                            }><Icon variant={"warning"} name={"close"}/></Link></Box></span>;
-                                        },
-                                        sortingField: "topic"
-                                    },
-                                ]}
-                                onSelectionChange={this.onTopicSelectionChange.bind(this)}
-                                selectedItems={[this.state.selectedTopic]}
-                                items={Object.keys(this.state.topicsAndMessages)}
-                                selectionType="single"
-                                empty={
-                                    <Box textAlign="center" color="inherit">
-                                        <b>No subscriptions</b>
-                                    </Box>
-                                }
-                                sortingDisabled={true}
-                            />
-                            <Table
-                                columnDefinitions={[
-                                    {
-                                        id: "topic",
-                                        header: "Topic",
-                                        cell: (m) => {
-                                            return m.topic;
-                                        }
-                                    },
-                                    {
-                                        id: "message",
-                                        header: "Message",
-                                        cell: (m) => {
-                                            return <pre>{m.binaryPayload}</pre>
-                                        },
-                                        width: "100%"
-                                    },
-                                    {
-                                        id: "date",
-                                        header: "Receive time",
-                                        cell: (m: Message) => {
-                                            return m.received.toLocaleTimeString();
-                                        }
-                                    }
-                                ]}
-                                items={this.state.topicsAndMessages[this.state.selectedTopic]?.slice()?.reverse()}
-                                empty={
-                                    <Box textAlign="center" color="inherit">
-                                        <b>No messages</b>
-                                    </Box>
+    const tabs = [
+        {
+            id: "tab1",
+            label: "Subscribe to a topic",
+            content: (
+                <Form
+                    actions={
+                        <Button variant="primary" onClick={onSubscribeTopicSubmit}>Subscribe</Button>
+                    }
+                >
+                    <SpaceBetween direction="vertical" size="l">
+                        <FormField label="Topic" description="The PubSub topic filter to subscribe to">
+                            <Input
+                                placeholder="Topic filter"
+                                value={topicInputValue}
+                                onChange={event =>
+                                    setTopicInputValue(event.detail.value)
                                 }
                             />
-                        </Grid>
-                    </Container>
-                </SpaceBetween>
-            </Box>
-        );
-    }
-}
+                        </FormField>
+                    </SpaceBetween>
+                </Form>
+            ),
+        },
+        {
+            id: "tab2",
+            label: "Publish to a topic",
+            content: (
+                <Form
+                    actions={
+                        <Button variant="primary" onClick={() => {
+                            SERVER.sendRequest({
+                                call: APICall.publishToPubSubTopic,
+                                args: [topicInputValue, messageInputValue],
+                            });
+                        }}>Publish</Button>
+                    }
+                >
+                    <SpaceBetween direction="vertical" size="l">
+                        <FormField label="Topic" description="The PubSub topic to publish on">
+                            <Input
+                                value={topicInputValue}
+                                onChange={event =>
+                                    setTopicInputValue(event.detail.value)
+                                }
+                            />
+                        </FormField>
+                        <FormField label="Message payload">
+                            <Textarea
+                                value={messageInputValue}
+                                onChange={event =>
+                                    setMessageInputValue(event.detail.value)
+                                }
+                            />
+                        </FormField>
+                    </SpaceBetween>
+                </Form>
+            ),
+        },
+    ];
 
-export default withRouter(PubSubDebugger);
+    const [preferences, setPreferences] = useState<CollectionPreferencesProps.Preferences>({
+        pageSize: 100,
+        visibleContent: ["topic", "date", "message"]
+    });
+    const {items, collectionProps, paginationProps} =
+        useCollection(topicsAndMessages[selectedTopic]?.slice().reverse() || [],
+            {
+                pagination: {pageSize: preferences.pageSize},
+                sorting: {
+                    defaultState: {
+                        sortingColumn: {
+                            sortingField: "date",
+                        },
+                        isDescending: true
+                    }
+                },
+            });
+
+    return (
+        <ContentLayout header={<Header variant={"h1"}>PubSub test client</Header>}>
+            <SpaceBetween direction="vertical" size="l">
+                <Container>
+                    <Tabs tabs={tabs}></Tabs>
+                </Container>
+                <Container header={<Header variant="h2">Subscriptions</Header>}>
+                    <Grid gridDefinition={[
+                        {colspan: {xxs: 4}},
+                        {colspan: {xxs: 8}},
+                    ]}>
+                        <Table
+                            columnDefinitions={[
+                                {
+                                    id: "variable",
+                                    header: "Topic",
+                                    cell: (e) => {
+                                        return <span>{e}<Box float="right"><Link onFollow={() => {
+                                            unsubscribeFromTopic(e);
+                                        }
+                                        }><Icon variant={"warning"} name={"close"}/></Link></Box></span>;
+                                    },
+                                    sortingField: "topic"
+                                },
+                            ]}
+                            onSelectionChange={(e: any) => {
+                                setSelectedTopic(e.detail.selectedItems[0]);
+                            }}
+                            selectedItems={[selectedTopic]}
+                            items={Object.keys(topicsAndMessages)}
+                            selectionType="single"
+                            empty={
+                                <Box textAlign="center" color="inherit">
+                                    <b>No subscriptions</b>
+                                </Box>
+                            }
+                            sortingDisabled={true}
+                        />
+                        <Table
+                            {...collectionProps}
+                            resizableColumns={true}
+                            header={<Header
+                                actions={<Button iconName={"close"} disabled={selectedTopic === ""} onClick={() => {
+                                    setTopicsAndMessages(old => {
+                                        return {...old, [selectedTopic]: []}
+                                    });
+                                }
+                                }>Clear all</Button>}/>}
+                            columnDefinitions={[
+                                {
+                                    id: "topic",
+                                    header: "Topic",
+                                    cell: (m) => {
+                                        return m.topic;
+                                    },
+                                    sortingField: "topic",
+                                    width: "20%"
+                                },
+                                {
+                                    id: "message",
+                                    header: "Message",
+                                    cell: (m) => {
+                                        return <pre>{m.binaryPayload}</pre>
+                                    },
+                                    width: "60%"
+                                },
+                                {
+                                    id: "date",
+                                    header: "Receive time",
+                                    cell: (m: Message) => {
+                                        return m.received.toLocaleTimeString();
+                                    },
+                                    sortingField: "received",
+                                    width: "20%"
+                                }
+                            ]}
+                            items={items}
+                            visibleColumns={preferences.visibleContent}
+                            preferences={
+                                <CollectionPreferences
+                                    visibleContentPreference={{
+                                        title: "Visible columns",
+                                        options: [{
+                                            label: "", options: [
+                                                {editable: true, label: "Topic", id: "topic"},
+                                                {editable: true, label: "Message", id: "message"},
+                                                {editable: true, label: "Receive time", id: "date"},
+                                            ]
+                                        }]
+                                    }}
+                                    pageSizePreference={{
+                                        title: "Page size",
+                                        options: [
+                                            {value: 50, label: "50"},
+                                            {value: 100, label: "100"},
+                                            {value: 1000, label: "1000"}]
+                                    }}
+                                    title={"Preferences"}
+                                    confirmLabel={"Ok"}
+                                    cancelLabel={"Cancel"}
+                                    preferences={preferences}
+                                    onConfirm={({detail}) => setPreferences(detail)}
+                                />
+                            }
+                            pagination={<Pagination {...paginationProps} />}
+                            empty={
+                                <Box textAlign="center" color="inherit">
+                                    <b>No messages</b>
+                                </Box>
+                            }
+                        />
+                    </Grid>
+                </Container>
+            </SpaceBetween>
+        </ContentLayout>
+    );
+};
+
+export default withRouter(PubSub);

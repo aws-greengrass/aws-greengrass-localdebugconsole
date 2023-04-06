@@ -29,7 +29,7 @@ export const routes: RouteType[] = [
   },
   {
     routePath: "/arch",
-    title: "Device Details",
+    title: "Device details",
     show: true,
     main: () => <Arch />,
   },
@@ -41,13 +41,13 @@ export const routes: RouteType[] = [
   },
   {
     routePath: SERVICE_ROUTE_HREF_PREFIX.substring(1) + ":component",
-    title: "Component Details",
+    title: "Component details",
     show: false,
     main: () => <ComponentDetail />,
   },
   {
     routePath: "/pubsub",
-    title: "PubSub",
+    title: "PubSub test client",
     show: true,
     main: () => <PubSub/>,
   },
