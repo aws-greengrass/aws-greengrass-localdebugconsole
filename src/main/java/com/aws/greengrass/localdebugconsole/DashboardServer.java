@@ -7,6 +7,7 @@ package com.aws.greengrass.localdebugconsole;
 
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
+import com.aws.greengrass.builtin.services.pubsub.SubscribeRequest;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.localdebugconsole.messageutils.CommunicationMessage;
@@ -26,12 +27,14 @@ import org.java_websocket.WebSocket;
 import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
+import software.amazon.awssdk.aws.greengrass.model.ReceiveMode;
 
 import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 import javax.inject.Provider;
@@ -51,23 +54,13 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             new DefaultConcurrentHashMap<>(HashSet::new);
     private final DefaultConcurrentHashMap<String, Set<WebSocket>> logWatchlist =
             new DefaultConcurrentHashMap<>(HashSet::new);
-    private final DefaultConcurrentHashMap<String, Set<WebSocket>> pubSubWatchList =
-            new DefaultConcurrentHashMap<>(HashSet::new);
+    private final DefaultConcurrentHashMap<WebSocket, Map<String, SubscribeRequest>> pubSubWatchList =
+            new DefaultConcurrentHashMap<>(ConcurrentHashMap::new);
     @Getter(AccessLevel.PACKAGE)
     private final CompletableFuture<Object> started = new CompletableFuture<>();
     private final Authenticator authenticator;
 
     PubSubIPCEventStreamAgent pubSubIPCAgent;
-
-    private final Consumer<PublishEvent> pubSubCallback = (message) -> {
-        pubSubWatchList.computeIfPresent(message.getTopic(), (k, set) -> {
-            for (WebSocket conn : set) {
-                CommunicationMessage resMessage = new CommunicationMessage(message.getTopic(), new String(message.getPayload()));
-                sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
-            }
-            return set;
-        });
-    };
     private final String SERVICE_NAME = "LocalDebugConsole";
 
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
@@ -233,10 +226,20 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case subscribeToPubSubTopic: {
-                    if (pubSubWatchList.get(req.args[0]).isEmpty()) {
-                        pubSubIPCAgent.subscribe(req.args[0], pubSubCallback, SERVICE_NAME);
-                    }
-                    pubSubWatchList.get(req.args[0]).add(conn);
+                    pubSubWatchList.get(conn).computeIfAbsent(req.args[0], (a) -> {
+                        Consumer<PublishEvent> cb = (c) -> {
+                            CommunicationMessage resMessage = new CommunicationMessage(
+                                    req.args[0],
+                                    c.getTopic(),
+                                    new String(c.getPayload()));
+                            sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
+                        };
+                        SubscribeRequest subReq =
+                                SubscribeRequest.builder().callback(cb).receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES)
+                                        .topic(req.args[0]).serviceName(SERVICE_NAME).build();
+                        pubSubIPCAgent.subscribe(subReq);
+                        return subReq;
+                    });
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     break;
                 }
@@ -246,9 +249,9 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case unsubscribeToPubSubTopic: {
-                    removeFromMapOfLists(pubSubWatchList, req.args[0], conn);
-                    if (pubSubWatchList.get(req.args[0]).isEmpty()) {
-                        pubSubIPCAgent.unsubscribe(req.args[0], pubSubCallback, SERVICE_NAME);
+                    SubscribeRequest subReq = pubSubWatchList.get(conn).get(req.args[0]);
+                    if (subReq != null) {
+                        pubSubIPCAgent.unsubscribe(subReq);
                     }
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     break;
@@ -266,7 +269,9 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         connections.remove(conn);
         statusWatchlist.forEach((name, set) -> set.remove(conn));
         logWatchlist.forEach((name, set) -> set.remove(conn));
-        pubSubWatchList.forEach((name, set) -> set.remove(conn));
+        pubSubWatchList.get(conn).forEach((topic, sub) -> {
+            pubSubIPCAgent.unsubscribe(sub);
+        });
         logger.atInfo()
                 .log("closed {} with exit code {}, additional info: {}", conn.getRemoteSocketAddress(), code, reason);
     }

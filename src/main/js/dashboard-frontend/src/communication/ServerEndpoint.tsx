@@ -174,7 +174,7 @@ export default class ServerEndpoint {
   };
   pubSubMessageHandler = (msg: Message) => {
     let pubsubMsg : CommunicationMessage = msg.payload;
-    let set = this.pubSubTopicsSubscribers.get(pubsubMsg.topic);
+    let set = this.pubSubTopicsSubscribers.get(pubsubMsg.subscribedTopic);
     if (set) set.forEach((callback) => callback(pubsubMsg));
   }
 

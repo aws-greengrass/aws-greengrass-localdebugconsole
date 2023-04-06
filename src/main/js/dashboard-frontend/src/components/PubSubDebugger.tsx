@@ -31,6 +31,7 @@ interface ServiceTableProps {
 interface Message {
     binaryPayload: string;
     received: Date;
+    topic: string;
 }
 
 interface PubSubState {
@@ -54,12 +55,12 @@ class PubSubDebugger extends Component<any & ServiceTableProps,
     }
 
     handleNewMessage = (message: CommunicationMessage) => {
-        const messageList = this.state.topicsAndMessages[message.topic];
-        messageList.push({binaryPayload: message.payload, received: new Date()});
+        const messageList = this.state.topicsAndMessages[message.subscribedTopic];
+        messageList.push({binaryPayload: message.payload, received: new Date(), topic: message.topic});
         this.setState({
             topicsAndMessages: {
                 ...this.state.topicsAndMessages,
-                [message.topic]: messageList,
+                [message.subscribedTopic]: messageList,
             }
         })
     };
@@ -223,7 +224,14 @@ class PubSubDebugger extends Component<any & ServiceTableProps,
                             <Table
                                 columnDefinitions={[
                                     {
-                                        id: "variable",
+                                        id: "topic",
+                                        header: "Topic",
+                                        cell: (m) => {
+                                            return m.topic;
+                                        }
+                                    },
+                                    {
+                                        id: "message",
                                         header: "Message",
                                         cell: (m) => {
                                             return <pre>{m.binaryPayload}</pre>

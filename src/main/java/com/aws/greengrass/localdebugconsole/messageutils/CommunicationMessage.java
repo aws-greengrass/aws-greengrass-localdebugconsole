@@ -8,7 +8,6 @@ package com.aws.greengrass.localdebugconsole.messageutils;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 /**
  * Class for modeling communication messages. PubSub or MQTT message.
@@ -17,6 +16,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Getter
 public class CommunicationMessage implements Comparable<CommunicationMessage> {
+    private final String subscribedTopic;
     private final String topic;
     private final String payload;
 
