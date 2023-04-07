@@ -17,9 +17,15 @@ import com.aws.greengrass.localdebugconsole.messageutils.MessageType;
 import com.aws.greengrass.localdebugconsole.messageutils.PackedRequest;
 import com.aws.greengrass.localdebugconsole.messageutils.Request;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.MqttRequestException;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -36,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -56,9 +63,12 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             new DefaultConcurrentHashMap<>(HashSet::new);
     private final DefaultConcurrentHashMap<WebSocket, Map<String, SubscribeRequest>> pubSubWatchList =
             new DefaultConcurrentHashMap<>(ConcurrentHashMap::new);
+    private final DefaultConcurrentHashMap<WebSocket, Map<String, Subscribe>> mqttWatchList =
+            new DefaultConcurrentHashMap<>(ConcurrentHashMap::new);
     @Getter(AccessLevel.PACKAGE)
     private final CompletableFuture<Object> started = new CompletableFuture<>();
     private final Authenticator authenticator;
+    private final MqttClient mqttClient;
 
     PubSubIPCEventStreamAgent pubSubIPCAgent;
     private final String SERVICE_NAME = "LocalDebugConsole";
@@ -66,12 +76,14 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
                            Authenticator authenticator, Provider<SSLEngine> engineProvider) {
         this(address, logger, new KernelCommunicator(root, logger, deviceConfig), authenticator, engineProvider,
-                root.getContext().get(PubSubIPCEventStreamAgent.class));
+                root.getContext().get(PubSubIPCEventStreamAgent.class),
+                root.getContext().get(MqttClient.class));
     }
 
     // constructor for unit testing
     DashboardServer(InetSocketAddress address, Logger logger, DashboardAPI dashboardAPI, Authenticator authenticator,
-                    Provider<SSLEngine> engineProvider, PubSubIPCEventStreamAgent pubSubIPCAgent) {
+                    Provider<SSLEngine> engineProvider, PubSubIPCEventStreamAgent pubSubIPCAgent,
+                    MqttClient mqttClient) {
         super(address);
         setReuseAddr(true);
         setTcpNoDelay(true);
@@ -83,6 +95,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         this.authenticator = authenticator;
         this.logger.atInfo().log("Starting dashboard server on address: {}", address);
         this.pubSubIPCAgent = pubSubIPCAgent;
+        this.mqttClient = mqttClient;
     }
 
     // links the API impl and starts the socket server
@@ -226,18 +239,49 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case subscribeToPubSubTopic: {
+                    JsonNode tree;
                     try {
-                        pubSubWatchList.get(conn).computeIfAbsent(req.args[0], (a) -> {
-                            Consumer<PublishEvent> cb = (c) -> {
-                                CommunicationMessage resMessage =
-                                        new CommunicationMessage(req.args[0], c.getTopic(), new String(c.getPayload()));
-                                sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
-                            };
-                            SubscribeRequest subReq = SubscribeRequest.builder().callback(cb).receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).topic(req.args[0])
-                                    .serviceName(SERVICE_NAME).build();
-                            pubSubIPCAgent.subscribe(subReq);
-                            return subReq;
-                        });
+                        tree = jsonMapper.readTree(req.args[0]);
+                    } catch (JsonProcessingException e) {
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+                        break;
+                    }
+
+                    String topicFilter = tree.get("topicFilter").textValue();
+                    String source = tree.get("source").textValue();
+                    String subId = tree.get("subId").textValue();
+                    try {
+                        if ("iotcore".equals(source)) {
+                            mqttWatchList.get(conn).computeIfAbsent(subId, (a) -> {
+                                Consumer<Publish> cb = (c) -> {
+                                    CommunicationMessage resMessage =
+                                            new CommunicationMessage(subId, topicFilter, c.getTopic(),
+                                                    new String(c.getPayload()));
+                                    sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
+                                };
+                                Subscribe subReq = Subscribe.builder().callback(cb).topic(topicFilter).build();
+                                try {
+                                    mqttClient.subscribe(subReq).get();
+                                } catch (MqttRequestException | InterruptedException | ExecutionException e) {
+                                    throw new RuntimeException(e);
+                                }
+                                return subReq;
+                            });
+                        } else {
+                            pubSubWatchList.get(conn).computeIfAbsent(subId, (a) -> {
+                                Consumer<PublishEvent> cb = (c) -> {
+                                    CommunicationMessage resMessage =
+                                            new CommunicationMessage(subId, topicFilter, c.getTopic(),
+                                                    new String(c.getPayload()));
+                                    sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
+                                };
+                                SubscribeRequest subReq = SubscribeRequest.builder().callback(cb)
+                                        .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).topic(topicFilter)
+                                        .serviceName(SERVICE_NAME).build();
+                                pubSubIPCAgent.subscribe(subReq);
+                                return subReq;
+                            });
+                        }
                         sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     } catch (Exception e) {
                         sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
@@ -245,8 +289,26 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case publishToPubSubTopic: {
+                    JsonNode tree;
                     try {
-                        pubSubIPCAgent.publish(req.args[0], req.args[1].getBytes(), SERVICE_NAME);
+                        tree = jsonMapper.readTree(req.args[0]);
+                    } catch (JsonProcessingException e) {
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+                        break;
+                    }
+
+                    String topic = tree.get("topic").textValue();
+                    String destination = tree.get("destination").textValue();
+                    String payload = tree.get("payload").textValue();
+                    try {
+                        if ("iotcore".equals(destination)) {
+                            mqttClient.publish(Publish.builder()
+                                    .topic(topic)
+                                    .payload(payload.getBytes())
+                                    .build());
+                        } else {
+                            pubSubIPCAgent.publish(topic, payload.getBytes(), SERVICE_NAME);
+                        }
                         sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     } catch (Exception e) {
                         sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
@@ -257,6 +319,17 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     SubscribeRequest subReq = pubSubWatchList.get(conn).remove(req.args[0]);
                     if (subReq != null) {
                         pubSubIPCAgent.unsubscribe(subReq);
+                    }
+                    Subscribe mqttSub = mqttWatchList.get(conn).remove(req.args[0]);
+                    if (mqttSub != null) {
+                        try {
+                            mqttClient.unsubscribe(Unsubscribe.builder().topic(mqttSub.getTopic())
+                                    .subscriptionCallback(mqttSub.getCallback()).build());
+                        } catch (MqttRequestException e) {
+                            sendIfOpen(conn,
+                                    new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+                            break;
+                        }
                     }
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
                     break;
@@ -274,8 +347,15 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         connections.remove(conn);
         statusWatchlist.forEach((name, set) -> set.remove(conn));
         logWatchlist.forEach((name, set) -> set.remove(conn));
-        pubSubWatchList.get(conn).forEach((topic, sub) -> {
-            pubSubIPCAgent.unsubscribe(sub);
+        pubSubWatchList.get(conn).forEach((topic, sub) -> pubSubIPCAgent.unsubscribe(sub));
+        mqttWatchList.get(conn).forEach((topic, sub) -> {
+            try {
+                mqttClient.unsubscribe(Unsubscribe.builder()
+                        .subscriptionCallback(sub.getCallback())
+                        .topic(sub.getTopic()).build());
+            } catch (MqttRequestException e) {
+                logger.error("failed to unsubscribe", e);
+            }
         });
         logger.atInfo()
                 .log("closed {} with exit code {}, additional info: {}", conn.getRemoteSocketAddress(), code, reason);

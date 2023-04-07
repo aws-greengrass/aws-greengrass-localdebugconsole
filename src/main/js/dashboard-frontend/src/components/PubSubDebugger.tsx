@@ -17,7 +17,7 @@ import {
     Header,
     Icon,
     Input,
-    Link, Pagination,
+    Link, Pagination, Select, SelectProps,
     SpaceBetween,
     Table,
     Tabs, TabsProps,
@@ -41,27 +41,42 @@ const PubSub = () => {
     const [publishTopicInputValue, setPublishTopicInputValue] = useState("");
     const [messageInputValue, setMessageInputValue] = useState("");
     const [topicsAndMessages, setTopicsAndMessages] = useState<{ [key: string]: Message[] }>({});
+    const [subscriptions, setSubscriptions] = useState<{subId: string, topic: string, source: string}[]>([]);
+
+    const pubsubSelection = {
+        value: "pubsub",
+        label: "Local PubSub"
+    };
+    const [subscribeSourceValue, setSubscribeSourceValue] = useState<SelectProps.Option>(pubsubSelection);
+    const [publishDestinationValue, setPublishDestinationValue] = useState<SelectProps.Option>(pubsubSelection);
     const topicsAndMessagesRef = useRef<typeof topicsAndMessages>();
     const defaultContext = useContext(DefaultContext);
     topicsAndMessagesRef.current = topicsAndMessages
 
     const handleNewMessage = useCallback((message: CommunicationMessage) => {
-        const messageList = topicsAndMessagesRef.current?.[message.subscribedTopic] || [];
+        const messageList = topicsAndMessagesRef.current?.[message.subId] || [];
         messageList.push({binaryPayload: message.payload, received: new Date(), topic: message.topic});
         setTopicsAndMessages((old) => ({
             ...old,
-            [message.subscribedTopic]: messageList,
+            [message.subId]: messageList,
         }));
     }, [topicsAndMessagesRef]);
 
     const onSubscribeTopicSubmit = () => {
         const topic = subscribeTopicInputValue;
-        if (topic in topicsAndMessages) {
+        const subId = subscribeSourceValue.value + topic;
+        if (subId in topicsAndMessages) {
             return;
         }
 
         SERVER.sendSubscriptionMessage(
-            {call: APICall.subscribeToPubSubTopic, args: [topic]},
+            {
+                call: APICall.subscribeToPubSubTopic, args: [{
+                    subId,
+                    topicFilter: topic,
+                    source: subscribeSourceValue.value
+                }]
+            },
             handleNewMessage
         ).then((r) => {
             if (typeof r === "string") {
@@ -71,30 +86,33 @@ const PubSub = () => {
                     content: r,
                 });
             } else {
-                setSelectedTopic(topic);
+                subscriptions.push({topic, subId, source: subscribeSourceValue.value!});
+                setSubscriptions(subscriptions);
+                setSelectedTopic(subId);
                 setTopicsAndMessages((old) => ({
                     ...old,
-                    [topic]: []
+                    [subId]: []
                 }));
             }
         });
     }
 
-    const unsubscribeFromTopic = (topic: string) => {
-        if (!(topic in topicsAndMessages)) {
+    const unsubscribeFromTopic = (subId: string) => {
+        if (!(subId in topicsAndMessages)) {
             return;
         }
 
-        delete topicsAndMessages[topic];
+        delete topicsAndMessages[subId];
         const topics = Object.keys(topicsAndMessages);
         let newTopic = "";
         if (topics.length !== 0) {
             newTopic = topics[0];
         }
-        setSelectedTopic(selectedTopic === topic ? newTopic : topic);
+        setSubscriptions(subscriptions.filter(s => s.subId !== subId));
+        setSelectedTopic(selectedTopic === subId ? newTopic : subId);
         setTopicsAndMessages({...topicsAndMessages});
         SERVER.sendSubscriptionMessage(
-            {call: APICall.unsubscribeToPubSubTopic, args: [topic]},
+            {call: APICall.unsubscribeToPubSubTopic, args: [subId]},
             handleNewMessage
         );
     }
@@ -110,7 +128,13 @@ const PubSub = () => {
                     }
                 >
                     <SpaceBetween direction="vertical" size="l">
-                        <FormField label="Topic filter">
+                        <FormField label="Topic filter"
+                                   secondaryControl={<Select selectedOption={subscribeSourceValue}
+                                                             options={[
+                                                                 pubsubSelection,
+                                                                 {value: "iotcore", label: "IoT Core"}]}
+                                                             onChange={(e) => setSubscribeSourceValue(e.detail.selectedOption)}
+                                   />}>
                             <Input
                                 placeholder="Topic filter"
                                 value={subscribeTopicInputValue}
@@ -132,7 +156,10 @@ const PubSub = () => {
                         <Button variant="primary" onClick={() => {
                             SERVER.sendRequest({
                                 call: APICall.publishToPubSubTopic,
-                                args: [publishTopicInputValue, messageInputValue],
+                                args: [JSON.stringify({
+                                    topic: publishTopicInputValue, payload: messageInputValue,
+                                    destination: publishDestinationValue.value
+                                })],
                             }).then((r) => {
                                 if (typeof r === "string") {
                                     defaultContext.addFlashItem!({
@@ -146,7 +173,14 @@ const PubSub = () => {
                     }
                 >
                     <SpaceBetween direction="vertical" size="l">
-                        <FormField label="Topic">
+                        <FormField label="Topic" secondaryControl={
+                            <Select selectedOption={publishDestinationValue}
+                                    options={[
+                                        pubsubSelection,
+                                        {value: "iotcore", label: "IoT Core"}]}
+                                    onChange={(e) => setPublishDestinationValue(e.detail.selectedOption)}
+                            />
+                        }>
                             <Input
                                 value={publishTopicInputValue}
                                 onChange={event =>
@@ -194,28 +228,38 @@ const PubSub = () => {
                 </Container>
                 <Container header={<Header variant="h2">Subscriptions</Header>}>
                     <Grid gridDefinition={[
-                        {colspan: {xxs: 4}},
-                        {colspan: {xxs: 8}},
+                        {colspan: {default: 12, s: 4}},
+                        {colspan: {default: 12, s: 8}},
                     ]}>
                         <Table
                             columnDefinitions={[
                                 {
-                                    id: "variable",
+                                    id: "source",
+                                    header: "Source",
+                                    cell: (e) => e.source === "iotcore" ? "IoT" : "PubSub",
+                                },
+                                {
+                                    id: "topic",
                                     header: "Topic",
-                                    cell: (e) => {
-                                        return <span>{e}<Box float="right"><Link onFollow={() => {
-                                            unsubscribeFromTopic(e);
-                                        }
-                                        }><Icon variant={"warning"} name={"close"}/></Link></Box></span>;
-                                    },
+                                    cell: (e) => e.topic,
                                     sortingField: "topic"
+                                },
+                                {
+                                    id: "unsub",
+                                    header: "",
+                                    cell: (e) => {
+                                        return <Link onFollow={() => {
+                                            unsubscribeFromTopic(e.subId);
+                                        }
+                                        }><Icon variant={"warning"} name={"close"}/></Link>;
+                                    },
                                 },
                             ]}
                             onSelectionChange={(e: any) => {
-                                setSelectedTopic(e.detail.selectedItems[0]);
+                                setSelectedTopic(e.detail.selectedItems[0].subId);
                             }}
-                            selectedItems={[selectedTopic]}
-                            items={Object.keys(topicsAndMessages)}
+                            selectedItems={subscriptions.filter(v => v.subId === selectedTopic)}
+                            items={subscriptions}
                             selectionType="single"
                             empty={
                                 <Box textAlign="center" color="inherit">
@@ -223,35 +267,20 @@ const PubSub = () => {
                                 </Box>
                             }
                             sortingDisabled={true}
+                            wrapLines={true}
                         />
                         <Table
                             {...collectionProps}
                             resizableColumns={true}
+                            wrapLines={true}
                             header={<Header
                                 actions={<Button iconName={"close"} disabled={selectedTopic === ""} onClick={() => {
                                     setTopicsAndMessages(old => {
                                         return {...old, [selectedTopic]: []}
                                     });
                                 }
-                                }>Clear all</Button>}/>}
+                                }>Clear</Button>}/>}
                             columnDefinitions={[
-                                {
-                                    id: "topic",
-                                    header: "Topic",
-                                    cell: (m) => {
-                                        return m.topic;
-                                    },
-                                    sortingField: "topic",
-                                    width: "20%"
-                                },
-                                {
-                                    id: "message",
-                                    header: "Message",
-                                    cell: (m) => {
-                                        return <pre>{m.binaryPayload}</pre>
-                                    },
-                                    width: "60%"
-                                },
                                 {
                                     id: "date",
                                     header: "Receive time",
@@ -259,8 +288,24 @@ const PubSub = () => {
                                         return m.received.toLocaleTimeString();
                                     },
                                     sortingField: "received",
-                                    width: "20%"
-                                }
+                                    width: 100,
+                                },
+                                {
+                                    id: "topic",
+                                    header: "Topic",
+                                    cell: (m) => {
+                                        return m.topic;
+                                    },
+                                    sortingField: "topic",
+                                    width: 100,
+                                },
+                                {
+                                    id: "message",
+                                    header: "Message",
+                                    cell: (m) => {
+                                        return <pre>{m.binaryPayload}</pre>
+                                    },
+                                },
                             ]}
                             items={items}
                             visibleColumns={preferences.visibleContent}
@@ -270,9 +315,9 @@ const PubSub = () => {
                                         title: "Visible columns",
                                         options: [{
                                             label: "", options: [
+                                                {editable: true, label: "Receive time", id: "date"},
                                                 {editable: true, label: "Topic", id: "topic"},
                                                 {editable: true, label: "Message", id: "message"},
-                                                {editable: true, label: "Receive time", id: "date"},
                                             ]
                                         }]
                                     }}
