@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, {useCallback, useRef, useState} from "react";
+import React, {useCallback, useContext, useRef, useState} from "react";
 import {withRouter} from "react-router-dom";
 
 import {
@@ -20,11 +20,11 @@ import {
     Link, Pagination,
     SpaceBetween,
     Table,
-    Tabs,
+    Tabs, TabsProps,
     Textarea,
 } from "@cloudscape-design/components";
 
-import {SERVER} from "../index";
+import {DefaultContext, SERVER} from "../index";
 import {APICall} from "../util/CommUtils";
 import {CommunicationMessage} from "../util/CommunicationMessage";
 import {useCollection} from "@cloudscape-design/collection-hooks";
@@ -37,14 +37,16 @@ interface Message {
 
 const PubSub = () => {
     const [selectedTopic, setSelectedTopic] = useState("");
-    const [topicInputValue, setTopicInputValue] = useState("");
+    const [subscribeTopicInputValue, setSubscribeTopicInputValue] = useState("");
+    const [publishTopicInputValue, setPublishTopicInputValue] = useState("");
     const [messageInputValue, setMessageInputValue] = useState("");
     const [topicsAndMessages, setTopicsAndMessages] = useState<{ [key: string]: Message[] }>({});
     const topicsAndMessagesRef = useRef<typeof topicsAndMessages>();
+    const defaultContext = useContext(DefaultContext);
     topicsAndMessagesRef.current = topicsAndMessages
 
     const handleNewMessage = useCallback((message: CommunicationMessage) => {
-        const messageList = topicsAndMessagesRef.current![message.subscribedTopic];
+        const messageList = topicsAndMessagesRef.current?.[message.subscribedTopic] || [];
         messageList.push({binaryPayload: message.payload, received: new Date(), topic: message.topic});
         setTopicsAndMessages((old) => ({
             ...old,
@@ -53,20 +55,29 @@ const PubSub = () => {
     }, [topicsAndMessagesRef]);
 
     const onSubscribeTopicSubmit = () => {
-        const topic = topicInputValue;
+        const topic = subscribeTopicInputValue;
         if (topic in topicsAndMessages) {
             return;
         }
 
-        setSelectedTopic(topic);
-        setTopicsAndMessages((old) => ({
-            ...old,
-            [topic]: []
-        }));
         SERVER.sendSubscriptionMessage(
-            {call: APICall.subscribeToPubSubTopic, args: [topicInputValue]},
+            {call: APICall.subscribeToPubSubTopic, args: [topic]},
             handleNewMessage
-        );
+        ).then((r) => {
+            if (typeof r === "string") {
+                defaultContext.addFlashItem!({
+                    type: 'error',
+                    header: 'Failed to subscribe',
+                    content: r,
+                });
+            } else {
+                setSelectedTopic(topic);
+                setTopicsAndMessages((old) => ({
+                    ...old,
+                    [topic]: []
+                }));
+            }
+        });
     }
 
     const unsubscribeFromTopic = (topic: string) => {
@@ -88,10 +99,10 @@ const PubSub = () => {
         );
     }
 
-    const tabs = [
+    const tabs: TabsProps.Tab[] = [
         {
             id: "tab1",
-            label: "Subscribe to a topic",
+            label: "Subscribe",
             content: (
                 <Form
                     actions={
@@ -99,12 +110,12 @@ const PubSub = () => {
                     }
                 >
                     <SpaceBetween direction="vertical" size="l">
-                        <FormField label="Topic" description="The PubSub topic filter to subscribe to">
+                        <FormField label="Topic filter">
                             <Input
                                 placeholder="Topic filter"
-                                value={topicInputValue}
+                                value={subscribeTopicInputValue}
                                 onChange={event =>
-                                    setTopicInputValue(event.detail.value)
+                                    setSubscribeTopicInputValue(event.detail.value)
                                 }
                             />
                         </FormField>
@@ -114,24 +125,32 @@ const PubSub = () => {
         },
         {
             id: "tab2",
-            label: "Publish to a topic",
+            label: "Publish",
             content: (
                 <Form
                     actions={
                         <Button variant="primary" onClick={() => {
                             SERVER.sendRequest({
                                 call: APICall.publishToPubSubTopic,
-                                args: [topicInputValue, messageInputValue],
+                                args: [publishTopicInputValue, messageInputValue],
+                            }).then((r) => {
+                                if (typeof r === "string") {
+                                    defaultContext.addFlashItem!({
+                                        type: 'error',
+                                        header: 'Failed to publish',
+                                        content: r,
+                                    });
+                                }
                             });
                         }}>Publish</Button>
                     }
                 >
                     <SpaceBetween direction="vertical" size="l">
-                        <FormField label="Topic" description="The PubSub topic to publish on">
+                        <FormField label="Topic">
                             <Input
-                                value={topicInputValue}
+                                value={publishTopicInputValue}
                                 onChange={event =>
-                                    setTopicInputValue(event.detail.value)
+                                    setPublishTopicInputValue(event.detail.value)
                                 }
                             />
                         </FormField>
@@ -168,7 +187,7 @@ const PubSub = () => {
             });
 
     return (
-        <ContentLayout header={<Header variant={"h1"}>PubSub test client</Header>}>
+        <ContentLayout header={<Header variant={"h1"}>Messaging test client</Header>}>
             <SpaceBetween direction="vertical" size="l">
                 <Container>
                     <Tabs tabs={tabs}></Tabs>
