@@ -4,14 +4,17 @@
  */
 
 export class CommunicationMessage {
+  subId: string;
   subscribedTopic: string;
   topic: string;
   payload: string;
   constructor(
+    subId: string,
     subscribedTopic: string,
     topic: string,
     payload: string,
   ) {
+    this.subId = subId;
     this.subscribedTopic = subscribedTopic;
     this.topic = topic;
     this.payload = payload;

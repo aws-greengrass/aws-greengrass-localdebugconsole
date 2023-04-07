@@ -177,8 +177,8 @@ export default class ServerEndpoint {
     if (set) set.forEach((callback) => callback(log));
   };
   pubSubMessageHandler = (msg: Message) => {
-    let pubsubMsg : CommunicationMessage = msg.payload;
-    let set = this.pubSubTopicsSubscribers.get(pubsubMsg.subscribedTopic);
+    const pubsubMsg : CommunicationMessage = msg.payload;
+    const set = this.pubSubTopicsSubscribers.get(pubsubMsg.subId);
     if (set) set.forEach((callback) => callback(pubsubMsg));
   }
 
@@ -296,13 +296,14 @@ export default class ServerEndpoint {
         break;
       }
       case APICall.subscribeToPubSubTopic: {
-        let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
+        const subId = request.args[0].subId;
+        const pot = this.pubSubTopicsSubscribers.get(subId);
         if (pot === undefined || pot.size === 0) {
-          return this.sendRequest(request).then((r) => {
+          return this.sendRequest({...request, args: [JSON.stringify(request.args[0])]}).then((r) => {
             // Only store the subscription if the subscribe request succeeds
             if (r === true) {
               this.pubSubTopicsSubscribers.set(
-                  request.args[0],
+                  subId,
                   new Set([messageHandler])
               );
             }

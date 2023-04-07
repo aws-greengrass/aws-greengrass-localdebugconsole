@@ -16,6 +16,7 @@ import lombok.Getter;
 @AllArgsConstructor
 @Getter
 public class CommunicationMessage implements Comparable<CommunicationMessage> {
+    private final String subId;
     private final String subscribedTopic;
     private final String topic;
     private final String payload;
