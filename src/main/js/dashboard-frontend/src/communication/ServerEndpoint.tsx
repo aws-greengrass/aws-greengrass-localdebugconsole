@@ -298,11 +298,16 @@ export default class ServerEndpoint {
       case APICall.subscribeToPubSubTopic: {
         let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
         if (pot === undefined || pot.size === 0) {
-          this.pubSubTopicsSubscribers.set(
-              request.args[0],
-              new Set([messageHandler])
-          );
-          return this.sendRequest(request);
+          return this.sendRequest(request).then((r) => {
+            // Only store the subscription if the subscribe request succeeds
+            if (r === true) {
+              this.pubSubTopicsSubscribers.set(
+                  request.args[0],
+                  new Set([messageHandler])
+              );
+            }
+            return r;
+          });
         } else {
           pot.add(messageHandler);
           return Promise.resolve(true);

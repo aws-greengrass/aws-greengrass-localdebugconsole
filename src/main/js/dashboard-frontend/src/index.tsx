@@ -82,7 +82,7 @@ const Routes = ({apiResource}: {apiResource: any}) => {
 
 const useNavOpenState = createPersistedState<boolean>("gg.navOpen");
 const useDarkModeState = createPersistedState<boolean>("gg.darkMode");
-export const DefaultContext = createContext<{darkMode?: boolean}>({});
+export const DefaultContext = createContext<{darkMode?: boolean, addFlashItem?: (i: FlashbarProps.MessageDefinition, removeExisting?: boolean) => void}>({});
 
 
 const AppFunc = () => {
@@ -95,13 +95,17 @@ const AppFunc = () => {
         applyMode(Mode.Light);
     }
 
-    const addFlashbarItem = (item: FlashbarProps.MessageDefinition) => {
+    const addFlashbarItem = (item: FlashbarProps.MessageDefinition, removeExisting: boolean = true) => {
         item.dismissible = true;
         item.onDismiss = () => {
             setFlashItems((flashItems) => flashItems.filter(i => i.id !== item.id));
         };
         item.id = generateUniqueId();
-        setFlashItems((flashItems) => [...flashItems, item]);
+        if (removeExisting) {
+            setFlashItems([item]);
+        } else {
+            setFlashItems((flashItems) => [...flashItems, item]);
+        }
     }
 
     const websocketError = (m: ReactNode) => {
@@ -140,7 +144,7 @@ const AppFunc = () => {
                             Loading... <Spinner size={"big"}/>
                         </Box>
                     }>
-                        <DefaultContext.Provider value={{darkMode}}>
+                        <DefaultContext.Provider value={{darkMode, addFlashItem: addFlashbarItem}}>
                             <Routes apiResource={resource}/>
                         </DefaultContext.Provider>
                     </Suspense>

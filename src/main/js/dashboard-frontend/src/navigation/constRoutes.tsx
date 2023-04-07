@@ -47,7 +47,7 @@ export const routes: RouteType[] = [
   },
   {
     routePath: "/pubsub",
-    title: "PubSub test client",
+    title: "Messaging test client",
     show: true,
     main: () => <PubSub/>,
   },

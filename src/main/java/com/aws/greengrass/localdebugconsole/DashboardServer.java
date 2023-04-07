@@ -226,26 +226,31 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case subscribeToPubSubTopic: {
-                    pubSubWatchList.get(conn).computeIfAbsent(req.args[0], (a) -> {
-                        Consumer<PublishEvent> cb = (c) -> {
-                            CommunicationMessage resMessage = new CommunicationMessage(
-                                    req.args[0],
-                                    c.getTopic(),
-                                    new String(c.getPayload()));
-                            sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
-                        };
-                        SubscribeRequest subReq =
-                                SubscribeRequest.builder().callback(cb).receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES)
-                                        .topic(req.args[0]).serviceName(SERVICE_NAME).build();
-                        pubSubIPCAgent.subscribe(subReq);
-                        return subReq;
-                    });
-                    sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    try {
+                        pubSubWatchList.get(conn).computeIfAbsent(req.args[0], (a) -> {
+                            Consumer<PublishEvent> cb = (c) -> {
+                                CommunicationMessage resMessage =
+                                        new CommunicationMessage(req.args[0], c.getTopic(), new String(c.getPayload()));
+                                sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
+                            };
+                            SubscribeRequest subReq = SubscribeRequest.builder().callback(cb).receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).topic(req.args[0])
+                                    .serviceName(SERVICE_NAME).build();
+                            pubSubIPCAgent.subscribe(subReq);
+                            return subReq;
+                        });
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    } catch (Exception e) {
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+                    }
                     break;
                 }
                 case publishToPubSubTopic: {
-                    pubSubIPCAgent.publish(req.args[0], req.args[1].getBytes(), SERVICE_NAME);
-                    sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    try {
+                        pubSubIPCAgent.publish(req.args[0], req.args[1].getBytes(), SERVICE_NAME);
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    } catch (Exception e) {
+                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+                    }
                     break;
                 }
                 case unsubscribeToPubSubTopic: {
