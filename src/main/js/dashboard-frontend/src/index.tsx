@@ -4,25 +4,18 @@
  */
 
 import "./index.css";
-import React, {createContext, ReactNode, Suspense, useState} from "react";
+import React, {createContext, ReactNode, Suspense, useEffect, useState} from "react";
 import ReactDOM from "react-dom";
 
-import { HashRouter, Route, Switch, Redirect } from "react-router-dom";
-import { routes } from "./navigation/constRoutes";
+import {HashRouter, Redirect, Route, Switch} from "react-router-dom";
+import {routes} from "./navigation/constRoutes";
 import NavSideBar from "./navigation/NavSideBar";
 
 import "@cloudscape-design/global-styles/index.css"
-import {
-    AppLayout,
-    Box,
-    Flashbar,
-    FlashbarProps,
-    Spinner,
-    Toggle
-} from "@cloudscape-design/components";
+import {AppLayout, Box, Flashbar, FlashbarProps, Spinner, Toggle} from "@cloudscape-design/components";
 import ServerEndpoint from "./communication/ServerEndpoint";
 import Breadcrumbs from "./navigation/Breadcrumbs";
-import { SERVICE_ROUTE_HREF_PREFIX } from "./util/constNames";
+import {SERVICE_ROUTE_HREF_PREFIX} from "./util/constNames";
 import {ErrorBoundary} from "react-error-boundary";
 import createPersistedState from 'use-persisted-state';
 import generateUniqueId from "./util/generateUniqueId";
@@ -89,11 +82,9 @@ const AppFunc = () => {
     const [flashItems, setFlashItems] = useState([] as FlashbarProps.MessageDefinition[]);
     const [navigationOpen, setNavigationOpen] = useNavOpenState(true);
     const [darkMode, setDarkMode] = useDarkModeState(window.matchMedia("(prefers-color-scheme: dark)").matches);
-    if (darkMode) {
-        applyMode(Mode.Dark);
-    } else {
-        applyMode(Mode.Light);
-    }
+    useEffect(() => {
+        applyMode(darkMode ? Mode.Dark : Mode.Light);
+    }, [darkMode]);
 
     const addFlashbarItem = (item: FlashbarProps.MessageDefinition, removeExisting: boolean = true) => {
         item.dismissible = true;

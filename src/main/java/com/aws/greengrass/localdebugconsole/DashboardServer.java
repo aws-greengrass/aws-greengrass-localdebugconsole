@@ -51,6 +51,7 @@ import javax.net.ssl.SSLEngine;
 @Singleton
 public class DashboardServer extends WebSocketServer implements KernelMessagePusher {
     static final String SERVER_START_MESSAGE = "Server started successfully";
+    private static final String IOT_CORE_SOURCE = "iotcore";
 
     private final DashboardAPI dashboardAPI;
     private final Logger logger;
@@ -239,99 +240,15 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
                 case subscribeToPubSubTopic: {
-                    JsonNode tree;
-                    try {
-                        tree = jsonMapper.readTree(req.args[0]);
-                    } catch (JsonProcessingException e) {
-                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
-                        break;
-                    }
-
-                    String topicFilter = tree.get("topicFilter").textValue();
-                    String source = tree.get("source").textValue();
-                    String subId = tree.get("subId").textValue();
-                    try {
-                        if ("iotcore".equals(source)) {
-                            mqttWatchList.get(conn).computeIfAbsent(subId, (a) -> {
-                                Consumer<Publish> cb = (c) -> {
-                                    CommunicationMessage resMessage =
-                                            new CommunicationMessage(subId, topicFilter, c.getTopic(),
-                                                    new String(c.getPayload()));
-                                    sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
-                                };
-                                Subscribe subReq = Subscribe.builder().callback(cb).topic(topicFilter).build();
-                                try {
-                                    mqttClient.subscribe(subReq).get();
-                                } catch (MqttRequestException | InterruptedException | ExecutionException e) {
-                                    throw new RuntimeException(e);
-                                }
-                                return subReq;
-                            });
-                        } else {
-                            pubSubWatchList.get(conn).computeIfAbsent(subId, (a) -> {
-                                Consumer<PublishEvent> cb = (c) -> {
-                                    CommunicationMessage resMessage =
-                                            new CommunicationMessage(subId, topicFilter, c.getTopic(),
-                                                    new String(c.getPayload()));
-                                    sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
-                                };
-                                SubscribeRequest subReq = SubscribeRequest.builder().callback(cb)
-                                        .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).topic(topicFilter)
-                                        .serviceName(SERVICE_NAME).build();
-                                pubSubIPCAgent.subscribe(subReq);
-                                return subReq;
-                            });
-                        }
-                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
-                    } catch (Exception e) {
-                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
-                    }
+                    subscribeToPubSubTopic(conn, packedRequest, req);
                     break;
                 }
                 case publishToPubSubTopic: {
-                    JsonNode tree;
-                    try {
-                        tree = jsonMapper.readTree(req.args[0]);
-                    } catch (JsonProcessingException e) {
-                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
-                        break;
-                    }
-
-                    String topic = tree.get("topic").textValue();
-                    String destination = tree.get("destination").textValue();
-                    String payload = tree.get("payload").textValue();
-                    try {
-                        if ("iotcore".equals(destination)) {
-                            mqttClient.publish(Publish.builder()
-                                    .topic(topic)
-                                    .payload(payload.getBytes())
-                                    .build());
-                        } else {
-                            pubSubIPCAgent.publish(topic, payload.getBytes(), SERVICE_NAME);
-                        }
-                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
-                    } catch (Exception e) {
-                        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
-                    }
+                    publishToPubSubTopic(conn, packedRequest, req);
                     break;
                 }
                 case unsubscribeToPubSubTopic: {
-                    SubscribeRequest subReq = pubSubWatchList.get(conn).remove(req.args[0]);
-                    if (subReq != null) {
-                        pubSubIPCAgent.unsubscribe(subReq);
-                    }
-                    Subscribe mqttSub = mqttWatchList.get(conn).remove(req.args[0]);
-                    if (mqttSub != null) {
-                        try {
-                            mqttClient.unsubscribe(Unsubscribe.builder().topic(mqttSub.getTopic())
-                                    .subscriptionCallback(mqttSub.getCallback()).build());
-                        } catch (MqttRequestException e) {
-                            sendIfOpen(conn,
-                                    new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
-                            break;
-                        }
-                    }
-                    sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+                    unsubscribeFromPubSubTopic(conn, packedRequest, req);
                     break;
                 }
                 default: { // echo
@@ -339,6 +256,102 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     break;
                 }
             }
+        }
+    }
+
+    private void subscribeToPubSubTopic(WebSocket conn, PackedRequest packedRequest, Request req) {
+        JsonNode tree;
+        try {
+            tree = jsonMapper.readTree(req.args[0]);
+        } catch (JsonProcessingException e) {
+            sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+            return;
+        }
+
+        String topicFilter = tree.get("topicFilter").textValue();
+        String source = tree.get("source").textValue();
+        String subId = tree.get("subId").textValue();
+        try {
+            if (IOT_CORE_SOURCE.equals(source)) {
+                mqttWatchList.get(conn).computeIfAbsent(subId, (a) -> {
+                    Consumer<Publish> cb = (c) -> {
+                        CommunicationMessage resMessage =
+                                new CommunicationMessage(subId, topicFilter, c.getTopic(),
+                                        new String(c.getPayload()));
+                        sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
+                    };
+                    Subscribe subReq = Subscribe.builder().callback(cb).topic(topicFilter).build();
+                    try {
+                        mqttClient.subscribe(subReq).get();
+                    } catch (MqttRequestException | InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return subReq;
+                });
+            } else {
+                pubSubWatchList.get(conn).computeIfAbsent(subId, (a) -> {
+                    Consumer<PublishEvent> cb = (c) -> {
+                        CommunicationMessage resMessage =
+                                new CommunicationMessage(subId, topicFilter, c.getTopic(),
+                                        new String(c.getPayload()));
+                        sendIfOpen(conn, new Message(MessageType.PUB_SUB_MSG, resMessage));
+                    };
+                    SubscribeRequest subReq = SubscribeRequest.builder().callback(cb)
+                            .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).topic(topicFilter)
+                            .serviceName(SERVICE_NAME).build();
+                    pubSubIPCAgent.subscribe(subReq);
+                    return subReq;
+                });
+            }
+            sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+        } catch (Exception e) {
+            sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+        }
+    }
+
+    private void unsubscribeFromPubSubTopic(WebSocket conn, PackedRequest packedRequest, Request req) {
+        SubscribeRequest subReq = pubSubWatchList.get(conn).remove(req.args[0]);
+        if (subReq != null) {
+            pubSubIPCAgent.unsubscribe(subReq);
+        }
+        Subscribe mqttSub = mqttWatchList.get(conn).remove(req.args[0]);
+        if (mqttSub != null) {
+            try {
+                mqttClient.unsubscribe(Unsubscribe.builder().topic(mqttSub.getTopic())
+                        .subscriptionCallback(mqttSub.getCallback()).build());
+            } catch (MqttRequestException e) {
+                sendIfOpen(conn,
+                        new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+                return;
+            }
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+    }
+
+    private void publishToPubSubTopic(WebSocket conn, PackedRequest packedRequest, Request req) {
+        JsonNode tree;
+        try {
+            tree = jsonMapper.readTree(req.args[0]);
+        } catch (JsonProcessingException e) {
+            sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
+            return;
+        }
+
+        String topic = tree.get("topic").textValue();
+        String destination = tree.get("destination").textValue();
+        String payload = tree.get("payload").textValue();
+        try {
+            if (IOT_CORE_SOURCE.equals(destination)) {
+                mqttClient.publish(Publish.builder()
+                        .topic(topic)
+                        .payload(payload.getBytes())
+                        .build());
+            } else {
+                pubSubIPCAgent.publish(topic, payload.getBytes(), SERVICE_NAME);
+            }
+            sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, true));
+        } catch (Exception e) {
+            sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
         }
     }
 

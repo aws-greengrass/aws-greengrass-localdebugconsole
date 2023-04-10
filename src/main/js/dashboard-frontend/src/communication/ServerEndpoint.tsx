@@ -309,22 +309,22 @@ export default class ServerEndpoint {
             }
             return r;
           });
-        } else {
-          pot.add(messageHandler);
-          return Promise.resolve(true);
         }
+
+        pot.add(messageHandler);
+        return true;
       }
       case APICall.unsubscribeToPubSubTopic: {
         let pot = this.pubSubTopicsSubscribers.get(request.args[0]);
-        if (pot !== undefined) {
-          pot.delete(messageHandler);
-          if (pot.size === 0) {
-            return this.sendRequest(request);
-          } else {
-            return Promise.resolve(true);
-          }
+        if (pot === undefined) {
+          break;
         }
-        break;
+        pot.delete(messageHandler);
+        if (pot.size === 0) {
+          return this.sendRequest(request);
+        }
+
+        return true;
       }
     }
     return this.sendRequest(request);
