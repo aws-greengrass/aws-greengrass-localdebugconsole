@@ -29,25 +29,31 @@ const apiResource = (websocketError: (m: ReactNode) => void) => {
         SERVER = new ServerEndpoint(window.WEBSOCKET_PORT, window.USERNAME, window.PASSWORD, 5, websocketError);
     }
 
-    let status = 0;
+    enum PromiseStatus {
+        PENDING,
+        RESOLVED,
+        REJECTED,
+    }
+
+    let status = PromiseStatus.PENDING;
     let e: any;
     const prom = SERVER.initConnections()
         .then(() => {
-            status = 1;
+            status = PromiseStatus.RESOLVED;
         })
         .catch((ex) => {
-            status = 2;
+            status = PromiseStatus.REJECTED;
             e = ex;
         });
 
     return {
         read() {
             switch (status) {
-                case 0:
+                case PromiseStatus.PENDING:
                     throw prom;
-                case 1:
+                case PromiseStatus.RESOLVED:
                     return null;
-                case 2:
+                case PromiseStatus.REJECTED:
                     throw e;
             }
         }

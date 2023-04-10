@@ -62,14 +62,14 @@ const PubSub = () => {
         }));
     }, [topicsAndMessagesRef]);
 
-    const onSubscribeTopicSubmit = () => {
+    const onSubscribeTopicSubmit = async () => {
         const topic = subscribeTopicInputValue;
         const subId = subscribeSourceValue.value + topic;
         if (subId in topicsAndMessages) {
             return;
         }
 
-        SERVER.sendSubscriptionMessage(
+        const result: unknown = await SERVER.sendSubscriptionMessage(
             {
                 call: APICall.subscribeToPubSubTopic, args: [{
                     subId,
@@ -78,23 +78,23 @@ const PubSub = () => {
                 }]
             },
             handleNewMessage
-        ).then((r) => {
-            if (typeof r === "string") {
-                defaultContext.addFlashItem!({
-                    type: 'error',
-                    header: 'Failed to subscribe',
-                    content: r,
-                });
-            } else {
-                subscriptions.push({topic, subId, source: subscribeSourceValue.value!});
-                setSubscriptions(subscriptions);
-                setSelectedTopic(subId);
-                setTopicsAndMessages((old) => ({
-                    ...old,
-                    [subId]: []
-                }));
-            }
-        });
+        );
+
+        if (typeof result === "string") {
+            defaultContext.addFlashItem!({
+                type: 'error',
+                header: 'Failed to subscribe',
+                content: result,
+            });
+        } else {
+            subscriptions.push({topic, subId, source: subscribeSourceValue.value!});
+            setSubscriptions(subscriptions);
+            setSelectedTopic(subId);
+            setTopicsAndMessages((old) => ({
+                ...old,
+                [subId]: []
+            }));
+        }
     }
 
     const unsubscribeFromTopic = (subId: string) => {
@@ -153,22 +153,22 @@ const PubSub = () => {
             content: (
                 <Form
                     actions={
-                        <Button variant="primary" onClick={() => {
-                            SERVER.sendRequest({
+                        <Button variant="primary" onClick={async () => {
+                            const result: unknown = await SERVER.sendRequest({
                                 call: APICall.publishToPubSubTopic,
                                 args: [JSON.stringify({
                                     topic: publishTopicInputValue, payload: messageInputValue,
                                     destination: publishDestinationValue.value
                                 })],
-                            }).then((r) => {
-                                if (typeof r === "string") {
-                                    defaultContext.addFlashItem!({
-                                        type: 'error',
-                                        header: 'Failed to publish',
-                                        content: r,
-                                    });
-                                }
                             });
+
+                            if (typeof result === "string") {
+                                defaultContext.addFlashItem!({
+                                    type: 'error',
+                                    header: 'Failed to publish',
+                                    content: result,
+                                });
+                            }
                         }}>Publish</Button>
                     }
                 >
