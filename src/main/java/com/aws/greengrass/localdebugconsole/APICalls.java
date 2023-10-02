@@ -96,4 +96,39 @@ public enum APICalls {
      * Utility called by the client to unsubscribe to a local IPC topic.
      */
     unsubscribeToPubSubTopic,
+
+    /**
+     * Returns the current Stream Manager streams list
+     */
+    streamManagerListStreams,
+
+    /**
+     * Describes a message stream to get metadata including the stream’s definition, size, and exporter statuses.
+     */
+    streamManagerDescribeStream,
+
+    /**
+     * Deletes a message stream based on its name.
+     */
+    streamManagerDeleteMessageStream,
+
+    /**
+     * Read message(s) from a chosen stream with options. If no options are specified it will try to read 1 message from the stream.
+     */
+    streamManagerReadMessages,
+
+    /**
+     * Append a message into the specified message stream.
+     */
+    streamManagerAppendMessage,
+
+    /**
+     * Create a message stream with a given definition.
+     */
+    streamManagerCreateMessageStream,
+
+    /**
+     * Update a message stream with a given definition.
+     */
+    streamManagerUpdateMessageStream,
 }

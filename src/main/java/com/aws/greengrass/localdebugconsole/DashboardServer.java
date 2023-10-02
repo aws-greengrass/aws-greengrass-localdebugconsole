@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.localdebugconsole;
 
+import com.amazonaws.greengrass.streammanager.model.MessageStreamDefinition;
 import com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgent;
 import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.builtin.services.pubsub.SubscribeRequest;
@@ -16,6 +17,7 @@ import com.aws.greengrass.localdebugconsole.messageutils.Message;
 import com.aws.greengrass.localdebugconsole.messageutils.MessageType;
 import com.aws.greengrass.localdebugconsole.messageutils.PackedRequest;
 import com.aws.greengrass.localdebugconsole.messageutils.Request;
+import com.aws.greengrass.localdebugconsole.messageutils.StreamManagerResponseMessage;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.MqttRequestException;
@@ -24,6 +26,7 @@ import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -71,20 +74,23 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     private final Authenticator authenticator;
     private final MqttClient mqttClient;
 
+    private final StreamManagerHelper streamManagerHelper;
+
     PubSubIPCEventStreamAgent pubSubIPCAgent;
     private final String SERVICE_NAME = "LocalDebugConsole";
 
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
-                           Authenticator authenticator, Provider<SSLEngine> engineProvider) {
+                           Authenticator authenticator, Provider<SSLEngine> engineProvider, String streamManagerAuthToken) {
         this(address, logger, new KernelCommunicator(root, logger, deviceConfig), authenticator, engineProvider,
                 root.getContext().get(PubSubIPCEventStreamAgent.class),
-                root.getContext().get(MqttClient.class));
+                root.getContext().get(MqttClient.class),
+                 new StreamManagerHelper(root, streamManagerAuthToken));
     }
 
     // constructor for unit testing
     DashboardServer(InetSocketAddress address, Logger logger, DashboardAPI dashboardAPI, Authenticator authenticator,
                     Provider<SSLEngine> engineProvider, PubSubIPCEventStreamAgent pubSubIPCAgent,
-                    MqttClient mqttClient) {
+                    MqttClient mqttClient, StreamManagerHelper streamManagerHelper) {
         super(address);
         setReuseAddr(true);
         setTcpNoDelay(true);
@@ -97,6 +103,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         this.logger.atInfo().log("Starting dashboard server on address: {}", address);
         this.pubSubIPCAgent = pubSubIPCAgent;
         this.mqttClient = mqttClient;
+        this.streamManagerHelper = streamManagerHelper;
     }
 
     // links the API impl and starts the socket server
@@ -251,6 +258,40 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     unsubscribeFromPubSubTopic(conn, packedRequest, req);
                     break;
                 }
+                case streamManagerListStreams: {
+                    streamManagerListStreams(conn, packedRequest);
+                    break;
+                }
+                case streamManagerDescribeStream: {
+                    streamManagerDescribeStream(conn, packedRequest, req);
+                    break;
+                }
+
+                case streamManagerDeleteMessageStream: {
+                    streamManagerDeleteMessageStream(conn, packedRequest, req);
+                    break;
+                }
+
+                case streamManagerReadMessages: {
+                    streamManagerReadMessages(conn, packedRequest, req);
+                    break;
+                }
+
+                case streamManagerAppendMessage:{
+                    streamManagerAppendMessage(conn, packedRequest, req);
+                    break;
+                }
+
+                case streamManagerCreateMessageStream:{
+                    streamManagerCreateMessageStream(conn, packedRequest, req);
+                    break;
+                }
+
+                case streamManagerUpdateMessageStream:{
+                    streamManagerUpdateMessageStream(conn, packedRequest, req);
+                    break;
+                }
+
                 default: { // echo
                     sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, req.call));
                     break;
@@ -354,6 +395,111 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
         }
     }
+
+    private void streamManagerListStreams(WebSocket conn, PackedRequest packedRequest) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            responseMessage.streamsList = this.streamManagerHelper.listStreams();
+            responseMessage.successful = true;
+        }
+        catch (Exception e){
+            logger.error("Error while listing streams:", e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
+    private void streamManagerDescribeStream(WebSocket conn, PackedRequest packedRequest, Request req) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            responseMessage.messageStreamInfo = this.streamManagerHelper.describeStream(req.args[0]);
+            responseMessage.successful = true;
+        }
+        catch (Exception e){
+            logger.error("Error while describing stream:",e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
+    private void streamManagerDeleteMessageStream(WebSocket conn, PackedRequest packedRequest, Request req) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            this.streamManagerHelper.deleteMessageStream(req.args[0]);
+            responseMessage.successful = true;
+        }
+        catch (Exception e){
+            logger.error("Error while deleting stream:", e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
+    private void streamManagerReadMessages(WebSocket conn, PackedRequest packedRequest, Request req) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            if (req.args.length == 5) {
+                responseMessage.messagesList = this.streamManagerHelper.readMessages(
+                                                    req.args[0],
+                                                    Long.parseLong(req.args[1]),
+                                                    Long.parseLong(req.args[2]),
+                                                    Long.parseLong(req.args[3]),
+                                                    Long.parseLong(req.args[4]));
+                responseMessage.successful = true;
+            }
+            else{
+                logger.atError().log("StreamManagerReadMessages requires 5 arguments");
+                responseMessage.errorMsg = "StreamManagerReadMessages requires 5 arguments";
+            }
+        }
+        catch (Exception e){
+            logger.error("Error while reading messages:", e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
+    private void streamManagerAppendMessage(WebSocket conn, PackedRequest packedRequest, Request req) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            this.streamManagerHelper.appendMessage(req.args[0], req.args[1].getBytes());
+            responseMessage.successful = true;
+        }
+        catch (Exception e){
+            logger.error("Error while appending message to the stream:", e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
+    private void streamManagerCreateMessageStream(WebSocket conn, PackedRequest packedRequest, Request req) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            MessageStreamDefinition messageStreamDefinition = jsonMapper.readValue(req.args[0], MessageStreamDefinition.class);
+            this.streamManagerHelper.createMessageStream(messageStreamDefinition);
+            responseMessage.successful = true;
+        }
+        catch (Exception e){
+            logger.error("Error while appending message to the stream:", e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
+    private void streamManagerUpdateMessageStream(WebSocket conn, PackedRequest packedRequest, Request req) {
+        StreamManagerResponseMessage responseMessage = new StreamManagerResponseMessage();
+        try {
+            MessageStreamDefinition messageStreamDefinition = jsonMapper.readValue(req.args[0], MessageStreamDefinition.class);
+            this.streamManagerHelper.updateMessageStream(messageStreamDefinition);
+            responseMessage.successful = true;
+        }
+        catch (Exception e){
+            logger.error("Error while appending message to the stream:", e);
+            responseMessage.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, responseMessage));
+    }
+
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {

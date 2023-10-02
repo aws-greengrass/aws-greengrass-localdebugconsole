@@ -12,6 +12,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.logging.api.Logger;
@@ -96,6 +97,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.util.Utils.isEmpty;
 import static io.netty.buffer.Unpooled.copiedBuffer;
 
@@ -131,6 +133,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
     private boolean httpsEnabled = DEFAULT_HTTPS_ENABLED;
     private SslContext context;
     private Provider<SSLEngine> engineProvider;
+    private String streamManagerAuthToken;
 
     @Inject
     public SimpleHttpServer(Topics t, Kernel kernel, DeviceConfiguration deviceConfiguration) {
@@ -142,6 +145,10 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
     @Override
     public void postInject() {
         super.postInject();
+        // Does not happen for built-in/plugin services so doing explicitly
+        AuthenticationHandler.registerAuthenticationToken(this);
+        streamManagerAuthToken = Coerce.toString(this.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY));
+
         config.lookup(CONFIGURATION_CONFIG_KEY, "port").dflt(port).subscribe((w, n) -> {
             int oldPort = port;
             port = Coerce.toInt(n);
@@ -195,7 +202,7 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
 
         logger.atInfo().log("Starting local dashboard server");
         dashboardServer = new DashboardServer(new InetSocketAddress(bindHostname, websocketPort), logger,
-                kernel, deviceConfig, this, engineProvider);
+                kernel, deviceConfig, this, engineProvider, streamManagerAuthToken);
         dashboardServer.startup();
         try {
             // We need to wait for the server to startup before grabbing the port because it starts in a separate thread
@@ -531,6 +538,10 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
 
     @Override
     public boolean isUsernameAndPasswordValid(Pair<String, String> usernameAndPassword) {
+        if (consoleAuthDisabled()) {
+            return true;
+        }
+
         Topics passwordTopics = config.getRoot().findTopics(DEBUG_PASSWORD_NAMESPACE);
         if (passwordTopics == null || usernameAndPassword == null) {
             return false;
@@ -563,7 +574,15 @@ public class SimpleHttpServer extends PluginService implements Authenticator {
         return Instant.now().isBefore(Instant.ofEpochMilli(Coerce.toLong(expirationTopic)));
     }
 
+    private static boolean consoleAuthDisabled() {
+        // Set to true in development so you don't need to authenticate all the time.
+        return false;
+    }
+
     private Pair<String, String> getUsernameAndPassword(String authHeader) {
+        if (consoleAuthDisabled()) {
+            return new Pair<>("", "");
+        }
         if (Utils.isEmpty(authHeader)) {
             return null;
         }
