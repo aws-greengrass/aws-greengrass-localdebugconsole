@@ -126,11 +126,24 @@ class DependencyGraph extends Component<
   }
 
   drawGraph() {
-    let svg = d3.select(this.svg.current);
+    let svg = d3.select(this.svg.current!) as unknown as d3.Selection<Element, unknown, any, any>;
     let inner: any = d3.select(this.innerG.current);
+
     this.d3render(inner, this.g);
-    inner.attr("transform", `translate(20, 20)`);
-    svg.attr("height", this.g.graph().height + 40);
+
+    // Enable pan/zoom
+    const zoom = d3.zoom()
+        .on("zoom", () => {
+          inner.attr("transform", d3.event.transform);
+        });
+    svg.call(zoom);
+
+    const { width, height } = inner.node().getBBox();
+    // Scale to fit, but no bigger than 2x
+    const scale = Math.min(Math.min(this.svg.current!.clientWidth / width, this.svg.current!.clientHeight / height) * 0.95, 2);
+    zoom.scaleTo(svg, scale);
+    // Center horizontally
+    zoom.translateTo(svg, width / 2, 0);
   }
   async componentDidMount() {
     await SERVER.initConnections();
@@ -165,7 +178,7 @@ class DependencyGraph extends Component<
         disableContentPaddings={true}
       >
         <div className="holder">
-          <svg height="100" style={{width: "100%"}} ref={this.svg}>
+          <svg height="100" style={{width: "100%", height: "500px"}} ref={this.svg}>
             <g ref={this.innerG} />
           </svg>
         </div>
