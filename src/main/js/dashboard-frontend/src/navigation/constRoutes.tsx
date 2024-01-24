@@ -9,6 +9,7 @@ import Arch from "../components/Arch";
 import { SERVICE_ROUTE_HREF_PREFIX, STREAM_MANAGER_ROUTE_HREF_PREFIX } from "../util/constNames";
 import ComponentDetail from "../components/details/ComponentDetail";
 import PubSub from "../components/PubSubDebugger";
+import ClientDevices from "../components/ClientDevices";
 import StreamManager from "../components/StreamManager";
 import StreamDetails from "../components/StreamDetails";
 
@@ -52,6 +53,12 @@ export const routes: RouteType[] = [
     title: "Messaging test client",
     show: true,
     main: () => <PubSub/>,
+  },
+  {
+    routePath: "/client-devices",
+    title: "Client Devices",
+    show: true,
+    main: () => <ClientDevices/>,
   },
   {
     routePath: STREAM_MANAGER_ROUTE_HREF_PREFIX.slice(1, -1),

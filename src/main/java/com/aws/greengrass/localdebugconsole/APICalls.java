@@ -98,6 +98,11 @@ public enum APICalls {
     unsubscribeToPubSubTopic,
 
     /**
+     * List all known client devices
+     */
+    listClientDevices,
+
+    /**
      * Returns the current Stream Manager streams list
      */
     streamManagerListStreams,

@@ -11,6 +11,9 @@ import com.aws.greengrass.builtin.services.pubsub.PublishEvent;
 import com.aws.greengrass.builtin.services.pubsub.SubscribeRequest;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.localdebugconsole.ggad.ClientDeviceApi;
+import com.aws.greengrass.localdebugconsole.ggad.HackyClientDeviceApi;
+import com.aws.greengrass.localdebugconsole.ggad.ListClientDevicesResponse;
 import com.aws.greengrass.localdebugconsole.messageutils.CommunicationMessage;
 import com.aws.greengrass.localdebugconsole.messageutils.DeviceDetails;
 import com.aws.greengrass.localdebugconsole.messageutils.Message;
@@ -57,6 +60,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     private static final String IOT_CORE_SOURCE = "iotcore";
 
     private final DashboardAPI dashboardAPI;
+    private final ClientDeviceApi clientDeviceApi;
     private final Logger logger;
     private static final ObjectMapper jsonMapper = new ObjectMapper();
 
@@ -99,6 +103,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         }
         this.logger = logger;
         this.dashboardAPI = dashboardAPI;
+        this.clientDeviceApi = new HackyClientDeviceApi(); // TODO
         this.authenticator = authenticator;
         this.logger.atInfo().log("Starting dashboard server on address: {}", address);
         this.pubSubIPCAgent = pubSubIPCAgent;
@@ -258,6 +263,10 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     unsubscribeFromPubSubTopic(conn, packedRequest, req);
                     break;
                 }
+                case listClientDevices: {
+                    listClientDevices(conn, packedRequest);
+                    break;
+                }
                 case streamManagerListStreams: {
                     streamManagerListStreams(conn, packedRequest);
                     break;
@@ -394,6 +403,18 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         } catch (Exception e) {
             sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, e.getMessage()));
         }
+    }
+
+    private void listClientDevices(WebSocket conn, PackedRequest packedRequest) {
+        ListClientDevicesResponse resp = new ListClientDevicesResponse();
+        try {
+            resp.clientDevices = clientDeviceApi.listClientDevices();
+            resp.successful = true;
+        } catch (Exception e) {
+            logger.error("Error while listing client devices", e);
+            resp.errorMsg = Utils.generateFailureMessage(e);
+        }
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, resp));
     }
 
     private void streamManagerListStreams(WebSocket conn, PackedRequest packedRequest) {

@@ -35,6 +35,7 @@ export enum APICall {
   subscribeToPubSubTopic = "subscribeToPubSubTopic",
   publishToPubSubTopic = "publishToPubSubTopic",
   unsubscribeToPubSubTopic = "unsubscribeToPubSubTopic",
+  listClientDevices = "listClientDevices",
   streamManagerListStreams = "streamManagerListStreams",
   streamManagerDescribeStream = "streamManagerDescribeStream",
   streamManagerDeleteMessageStream = "streamManagerDeleteMessageStream",
