@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 @Singleton
 @RequiredArgsConstructor
-public class HackyClientDeviceApi implements ClientDeviceApi {
+public class ClientDeviceApiImpl implements ClientDeviceApi {
 
     private final Kernel kernel;
 
@@ -33,6 +33,19 @@ public class HackyClientDeviceApi implements ClientDeviceApi {
                     .collect(Collectors.toList());
         } catch (ServiceLoadException e) {
             return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public ServiceStatus getServiceStatus() {
+        try {
+            com.aws.greengrass.clientdevices.auth.api.ServiceStatus status = cda().getServiceStatus();
+            return ServiceStatus.builder()
+                    .brokerAddress(status.getBrokerAddress())
+                    .online(status.getOnline())
+                    .build();
+        } catch (ServiceLoadException e) {
+            return null;
         }
     }
 

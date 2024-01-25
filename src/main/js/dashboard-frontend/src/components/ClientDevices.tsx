@@ -38,15 +38,13 @@ class ClientDevice {
     }
 }
 
-class ListClientDevicesResponse {
-    public successful: boolean;
-    public errorMsg: string | null;
-    public clientDevices: ClientDevice[];
+class ServiceStatus {
+    public online: boolean;
+    public brokerAddress?: string;
 
-    constructor() {
-        this.successful = false;
-        this.errorMsg = null;
-        this.clientDevices = [];
+    constructor(online: boolean, brokerAddress?: string) {
+        this.online = online;
+        this.brokerAddress = brokerAddress;
     }
 }
 
@@ -54,6 +52,7 @@ const ClientDevices = () => {
 
     // model state
     const [clientDevices, setClientDevices] = useState<ClientDevice[]>([])
+    const [serviceStatus, setServiceStatus] = useState<ServiceStatus>();
 
     // page state
     const [selectedClientDevices, setSelectedClientDevices] = useState<ClientDevice[]>()
@@ -65,9 +64,22 @@ const ClientDevices = () => {
         SERVER.sendRequest({call: APICall.listClientDevices, args: []})
             .then(resp => setClientDevices(resp.clientDevices))
             .catch(reason => console.log("Error: " + reason));
+    const fetchServiceStatus = () =>
+        SERVER.sendRequest({call: APICall.cdaGetServiceStatus, args: []})
+            .then(resp => {
+                if (resp) {
+                    setServiceStatus(resp)
+                }
+            })
+            .catch(reason => console.log("Error: " + reason));
+
+    const refreshAll = () => {
+        void fetchServiceStatus();
+        void listClientDevices();
+    };
 
     // event handling
-    const onClickRefresh = listClientDevices;
+    const onClickRefresh = refreshAll;
     const onPageIndexChanged = listClientDevices;
 
     const [preferences, setPreferences] = useState<CollectionPreferencesProps.Preferences>({
@@ -75,11 +87,7 @@ const ClientDevices = () => {
         visibleContent: ["thingName", "hasSession", "certExpiry"]
     });
 
-    useEffect(() => {
-        void listClientDevices();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPageIndex, preferences]);
-
+    useEffect(refreshAll, [currentPageIndex, preferences]);
 
     const cols: TableProps.ColumnDefinition<ClientDevice>[] = [
         {
@@ -89,7 +97,7 @@ const ClientDevices = () => {
         },
         {
             id: "hasSession",
-            header: "Session",
+            header: "Connected",
             cell: (e: ClientDevice) => {
                 if (e.hasSession === undefined) {
                     return "Unknown";
@@ -108,6 +116,24 @@ const ClientDevices = () => {
             }
         }
     ];
+
+    // TODO make pretty
+    const serviceStatusPage = (
+        <div>
+            <Button
+                onClick={onClickRefresh}
+                iconName="refresh"
+                wrapText={false}
+                disabled={false}
+            >
+            </Button>
+            <p>Client Device Auth Component</p>
+            <ul>
+                <li>Network connected?: {serviceStatus?.online ? "Yes" : "No"}</li>
+                <li>MQTT Broker Address: {serviceStatus?.brokerAddress}</li>
+            </ul>
+        </div>
+    );
 
     const clientDevicesTable = (<Table
         empty={
@@ -146,7 +172,7 @@ const ClientDevices = () => {
                     options: [{
                         label: "", options: [
                             {editable: false, label: "Thing Name", id: "thingName"},
-                            {editable: true, label: "Session", id: "hasSession"},
+                            {editable: true, label: "Connected", id: "hasSession"},
                             {editable: true, label: "Certificate Expiry", id: "certExpiry"},
                         ]
                     }]
@@ -202,6 +228,11 @@ const ClientDevices = () => {
     const tabs: TabsProps.Tab[] = [
         {
             id: "tab1",
+            label: "Service Status",
+            content: serviceStatusPage,
+        },
+        {
+            id: "tab2",
             label: "Client Devices",
             content: clientDevicesTable,
         },

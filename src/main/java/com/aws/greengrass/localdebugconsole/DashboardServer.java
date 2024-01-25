@@ -12,7 +12,7 @@ import com.aws.greengrass.builtin.services.pubsub.SubscribeRequest;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.localdebugconsole.ggad.ClientDeviceApi;
-import com.aws.greengrass.localdebugconsole.ggad.HackyClientDeviceApi;
+import com.aws.greengrass.localdebugconsole.ggad.ClientDeviceApiImpl;
 import com.aws.greengrass.localdebugconsole.ggad.ListClientDevicesResponse;
 import com.aws.greengrass.localdebugconsole.messageutils.CommunicationMessage;
 import com.aws.greengrass.localdebugconsole.messageutils.DeviceDetails;
@@ -86,7 +86,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
                            Authenticator authenticator, Provider<SSLEngine> engineProvider, String streamManagerAuthToken) {
         this(address, logger, new KernelCommunicator(root, logger, deviceConfig),
-                new HackyClientDeviceApi(root), authenticator, engineProvider,
+                new ClientDeviceApiImpl(root), authenticator, engineProvider,
                 root.getContext().get(PubSubIPCEventStreamAgent.class),
                 root.getContext().get(MqttClient.class),
                  new StreamManagerHelper(root, streamManagerAuthToken));
@@ -269,6 +269,10 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
                     listClientDevices(conn, packedRequest);
                     break;
                 }
+                case cdaGetServiceStatus: {
+                    cdaGetServiceStatus(conn, packedRequest);
+                    break;
+                }
                 case streamManagerListStreams: {
                     streamManagerListStreams(conn, packedRequest);
                     break;
@@ -417,6 +421,11 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
             resp.errorMsg = Utils.generateFailureMessage(e);
         }
         sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID, resp));
+    }
+
+    private void cdaGetServiceStatus(WebSocket conn, PackedRequest packedRequest) {
+        sendIfOpen(conn, new Message(MessageType.RESPONSE, packedRequest.requestID,
+                clientDeviceApi.getServiceStatus()));
     }
 
     private void streamManagerListStreams(WebSocket conn, PackedRequest packedRequest) {

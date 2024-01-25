@@ -7,7 +7,6 @@ package com.aws.greengrass.localdebugconsole;
 
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.localdebugconsole.dashboardtestmocks.DashboardClientMock;
-import com.aws.greengrass.localdebugconsole.ggad.HackyClientDeviceApi;
 import com.aws.greengrass.localdebugconsole.messageutils.ComponentItem;
 import com.aws.greengrass.localdebugconsole.messageutils.DepGraphNode;
 import com.aws.greengrass.localdebugconsole.messageutils.Dependency;

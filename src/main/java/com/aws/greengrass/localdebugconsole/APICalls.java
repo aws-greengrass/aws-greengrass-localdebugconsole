@@ -103,6 +103,11 @@ public enum APICalls {
     listClientDevices,
 
     /**
+     * Get the status of Client Device Auth service
+     */
+    cdaGetServiceStatus,
+
+    /**
      * Returns the current Stream Manager streams list
      */
     streamManagerListStreams,

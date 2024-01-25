@@ -5,9 +5,12 @@
 
 package com.aws.greengrass.localdebugconsole.ggad;
 
-import java.util.List;
+import lombok.Builder;
+import lombok.Value;
 
-public interface ClientDeviceApi {
-    List<ClientDevice> listClientDevices();
-    ServiceStatus getServiceStatus();
+@Value
+@Builder
+public class ServiceStatus {
+    Boolean online;
+    String brokerAddress;
 }
