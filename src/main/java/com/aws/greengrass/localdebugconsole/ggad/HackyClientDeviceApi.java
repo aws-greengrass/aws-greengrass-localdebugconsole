@@ -5,12 +5,37 @@
 
 package com.aws.greengrass.localdebugconsole.ggad;
 
+import com.aws.greengrass.clientdevices.auth.api.ClientDevicesAuthServiceApi;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import lombok.RequiredArgsConstructor;
+
+import javax.inject.Singleton;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
+@Singleton
+@RequiredArgsConstructor
 public class HackyClientDeviceApi implements ClientDeviceApi {
+
+    private final Kernel kernel;
+
     @Override
     public List<ClientDevice> listClientDevices() {
-        return Collections.singletonList(ClientDevice.builder().thingName("test").build());
+        try {
+            return cda().listClientDevices().stream()
+                    .map(d -> ClientDevice.builder()
+                            .thingName(d.getThingName())
+                            .build())
+                    .collect(Collectors.toList());
+        } catch (ServiceLoadException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private synchronized ClientDevicesAuthServiceApi cda() throws ServiceLoadException {
+        return kernel.locate("aws.greengrass.clientdevices.Auth")
+                    .getContext().get(ClientDevicesAuthServiceApi.class);
     }
 }

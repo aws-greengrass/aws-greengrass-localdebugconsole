@@ -85,14 +85,16 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
 
     public DashboardServer(InetSocketAddress address, Logger logger, Kernel root, DeviceConfiguration deviceConfig,
                            Authenticator authenticator, Provider<SSLEngine> engineProvider, String streamManagerAuthToken) {
-        this(address, logger, new KernelCommunicator(root, logger, deviceConfig), authenticator, engineProvider,
+        this(address, logger, new KernelCommunicator(root, logger, deviceConfig),
+                new HackyClientDeviceApi(root), authenticator, engineProvider,
                 root.getContext().get(PubSubIPCEventStreamAgent.class),
                 root.getContext().get(MqttClient.class),
                  new StreamManagerHelper(root, streamManagerAuthToken));
     }
 
     // constructor for unit testing
-    DashboardServer(InetSocketAddress address, Logger logger, DashboardAPI dashboardAPI, Authenticator authenticator,
+    DashboardServer(InetSocketAddress address, Logger logger, DashboardAPI dashboardAPI,
+                    ClientDeviceApi clientDeviceApi, Authenticator authenticator,
                     Provider<SSLEngine> engineProvider, PubSubIPCEventStreamAgent pubSubIPCAgent,
                     MqttClient mqttClient, StreamManagerHelper streamManagerHelper) {
         super(address);
@@ -103,7 +105,7 @@ public class DashboardServer extends WebSocketServer implements KernelMessagePus
         }
         this.logger = logger;
         this.dashboardAPI = dashboardAPI;
-        this.clientDeviceApi = new HackyClientDeviceApi(); // TODO
+        this.clientDeviceApi = clientDeviceApi;
         this.authenticator = authenticator;
         this.logger.atInfo().log("Starting dashboard server on address: {}", address);
         this.pubSubIPCAgent = pubSubIPCAgent;

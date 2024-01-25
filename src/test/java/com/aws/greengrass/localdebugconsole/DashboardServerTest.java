@@ -7,6 +7,7 @@ package com.aws.greengrass.localdebugconsole;
 
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.localdebugconsole.dashboardtestmocks.DashboardClientMock;
+import com.aws.greengrass.localdebugconsole.ggad.HackyClientDeviceApi;
 import com.aws.greengrass.localdebugconsole.messageutils.ComponentItem;
 import com.aws.greengrass.localdebugconsole.messageutils.DepGraphNode;
 import com.aws.greengrass.localdebugconsole.messageutils.Dependency;
@@ -76,7 +77,7 @@ class DashboardServerTest {
 
         addGlobalListener(listener);
         ds = new DashboardServer(new InetSocketAddress("localhost", dashboardServerPort),
-                LogManager.getLogger(Kernel.class), kc, authenticator, null, null, null, null);
+                LogManager.getLogger(Kernel.class), kc, null, authenticator, null, null, null, null);
         ds.startup();
         assertTrue(startupLatch.await(5, TimeUnit.SECONDS));
         dashboardServerPort = ds.getPort();
