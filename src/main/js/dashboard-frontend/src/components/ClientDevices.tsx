@@ -28,9 +28,13 @@ import PaginationRendering from "../util/PaginationRendering";
 
 class ClientDevice {
     public thingName: string;
+    public hasSession?: boolean;
+    public certExpiry?: number;
 
-    constructor(thingName: string) {
+    constructor(thingName: string, hasSession?: boolean, certExpiry?: number) {
         this.thingName = thingName;
+        this.hasSession = hasSession;
+        this.certExpiry = certExpiry;
     }
 }
 
@@ -68,7 +72,7 @@ const ClientDevices = () => {
 
     const [preferences, setPreferences] = useState<CollectionPreferencesProps.Preferences>({
         pageSize: 100,
-        visibleContent: ["thingName"]
+        visibleContent: ["thingName", "hasSession", "certExpiry"]
     });
 
     useEffect(() => {
@@ -82,6 +86,26 @@ const ClientDevices = () => {
             id: "thingName",
             header: "Thing Name",
             cell: (e: ClientDevice) => e.thingName
+        },
+        {
+            id: "hasSession",
+            header: "Session",
+            cell: (e: ClientDevice) => {
+                if (e.hasSession === undefined) {
+                    return "Unknown";
+                }
+                return e.hasSession ? "Yes" : "No";
+            }
+        },
+        {
+            id: "certExpiry",
+            header: "Certificate Expiry",
+            cell: (e: ClientDevice) => {
+                if (e.certExpiry === undefined) {
+                    return "Unknown";
+                }
+                return new Date(e.certExpiry).toString();
+            }
         }
     ];
 
@@ -122,6 +146,8 @@ const ClientDevices = () => {
                     options: [{
                         label: "", options: [
                             {editable: false, label: "Thing Name", id: "thingName"},
+                            {editable: true, label: "Session", id: "hasSession"},
+                            {editable: true, label: "Certificate Expiry", id: "certExpiry"},
                         ]
                     }]
                 }}

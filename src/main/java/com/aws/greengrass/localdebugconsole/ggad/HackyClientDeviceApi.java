@@ -27,6 +27,8 @@ public class HackyClientDeviceApi implements ClientDeviceApi {
             return cda().listClientDevices().stream()
                     .map(d -> ClientDevice.builder()
                             .thingName(d.getThingName())
+                            .hasSession(d.getHasSession())
+                            .certExpiry(d.getCertExpiry() == null ? null : d.getCertExpiry().getTime())
                             .build())
                     .collect(Collectors.toList());
         } catch (ServiceLoadException e) {

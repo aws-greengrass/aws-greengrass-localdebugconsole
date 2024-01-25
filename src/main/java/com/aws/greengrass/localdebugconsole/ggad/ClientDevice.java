@@ -12,4 +12,6 @@ import lombok.Value;
 @Builder
 public class ClientDevice {
     String thingName;
+    Boolean hasSession;
+    Long certExpiry;
 }
