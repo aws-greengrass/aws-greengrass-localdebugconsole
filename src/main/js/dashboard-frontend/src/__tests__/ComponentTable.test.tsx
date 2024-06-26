@@ -45,6 +45,7 @@ test("Service item points to the right href", () => {
           .findBodyCell(1, 2)!
           .getElement()!
           .firstElementChild!
+          .firstElementChild!
           .getAttribute("href")
   ).toEqual(SERVICE_ROUTE_HREF_PREFIX + fullRangeList[0].name);
 });

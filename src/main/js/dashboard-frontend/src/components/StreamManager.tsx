@@ -254,7 +254,7 @@ function StreamManager() {
                     JVM_ARGS: jvmArgs,
                     LOG_LEVEL: logLevel,
                     STREAM_MANAGER_AUTHENTICATE_CLIENT: streamManagerAuthenticateClient,
-                    STREAM_MANAGER_EXPORTER_MAX_BANDWIDTH: formatBytes(parseInt(streamManagerExporterMaxBandwidth || "0", 10)) + "/s",
+                    STREAM_MANAGER_EXPORTER_MAX_BANDWIDTH: formatBytes(parseInt(streamManagerExporterMaxBandwidth || "0", 10)*1024/8) + "/s",
                     STREAM_MANAGER_EXPORTER_S3_DESTINATION_MULTIPART_UPLOAD_MIN_PART_SIZE_BYTES: formatBytes(parseInt(streamManagerS3UploadMinPart || "0", 10)),
                     STREAM_MANAGER_SERVER_PORT: streamManagerServerPort,
                     STREAM_MANAGER_STORE_ROOT_DIR: streamManagerStoreRootDir,
