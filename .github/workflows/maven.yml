@@ -27,7 +27,7 @@ jobs:
         env:
           AWS_REGION: us-west-2
       - name: Upload Failed Test Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Failed Test Report
