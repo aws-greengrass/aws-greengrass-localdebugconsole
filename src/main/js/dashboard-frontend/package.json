@@ -1,11 +1,11 @@
 {
   "name": "dashboard-frontend",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "dependencies": {
     "@cloudscape-design/collection-hooks": "^1.0.23",
     "@cloudscape-design/component-toolkit": "^1.0.0-beta.24",
-    "@cloudscape-design/components": "^3.0.388",
+    "@cloudscape-design/components": "^3.0.1163",
     "@cloudscape-design/design-tokens": "^3.0.28",
     "@cloudscape-design/global-styles": "^1.0.12",
     "ace-builds": "^1.4.12",

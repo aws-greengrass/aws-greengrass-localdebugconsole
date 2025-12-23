@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {StatusIndicatorProps} from "@cloudscape-design/components/status-indicator/internal";
+import {StatusIndicatorProps} from "@cloudscape-design/components/status-indicator/interfaces";
 
 export class ComponentItem {
   name: string;
