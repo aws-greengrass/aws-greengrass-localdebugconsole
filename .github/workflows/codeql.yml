@@ -44,7 +44,7 @@ jobs:
       - name: Install npm dependencies
         run: |
           cd src/main/js/dashboard-frontend
-          npm ci
+          npm install
 
       - name: Build with Maven
         run: mvn compile -DskipTests
