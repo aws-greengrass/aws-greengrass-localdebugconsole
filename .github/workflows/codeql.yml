@@ -47,7 +47,7 @@ jobs:
           npm install
 
       - name: Build with Maven
-        run: mvn compile -DskipTests
+        run: mvn compile
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
